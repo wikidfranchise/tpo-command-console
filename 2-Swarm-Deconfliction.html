@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TPO | Swarm Control - Multi-Directional Entry</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #airspace { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); }
+        
+        #priority-key { position: absolute; top: 20px; right: 20px; width: 260px; background: rgba(15, 23, 42, 0.9); border: 1px solid #06b6d4; padding: 20px; border-radius: 4px; z-index: 1000; font-size: 13px; }
+        .key-item { display: flex; align-items: center; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .key-dot { width: 20px; height: 20px; border-radius: 50%; margin-right: 15px; }
+        
+        /* Tactical Controls */
+        #controls { height: 60px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 1000; }
+        .ctrl-btn { background: transparent; border: 1px solid #334155; color: #cbd5e1; padding: 10px 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .ctrl-btn:hover { background: #1e293b; color: white; }
+        
+        /* High-Contrast P3 & Reset */
+        .p3-btn { border-color: #facc15; color: #facc15; } .p3-btn:hover { background: rgba(250, 204, 21, 0.1); }
+        .p2-btn { border-color: #a855f7; color: #a855f7; } .p2-btn:hover { background: rgba(168, 85, 247, 0.1); }
+        .p1-btn { border-color: #ef4444; color: #ef4444; } .p1-btn:hover { background: rgba(239, 68, 68, 0.1); }
+        .reset-btn { border-color: #94a3b8; color: #94a3b8; } .reset-btn:hover { background: rgba(148, 163, 184, 0.1); }
+
+        .drone { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; transition: background-color 0.2s; }
+        
+        .p1 { background-color: #ef4444; box-shadow: 0 0 25px #ef4444; width: 28px; height: 28px; z-index: 100; } 
+        .p2 { background-color: #a855f7; box-shadow: 0 0 20px #a855f7; width: 24px; height: 24px; z-index: 80; }  
+        .p3 { background-color: #facc15; box-shadow: 0 0 15px #facc15; width: 20px; height: 20px; z-index: 60; }  
+        .p4 { background-color: #3b82f6; box-shadow: 0 0 12px #3b82f6; width: 16px; height: 16px; z-index: 40; }  
+        .p5 { background-color: #94a3b8; box-shadow: 0 0 10px #94a3b8; width: 12px; height: 12px; z-index: 20; }  
+        
+        /* Yielding is Neon Orange */
+        .yielding { background-color: #f97316 !important; box-shadow: 0 0 40px #f97316 !important; z-index: 90;}
+
+        .shroud { position: absolute; width: 120px; height: 120px; border: 5px dashed rgba(239, 68, 68, 0.8); border-radius: 50%; transform: translate(-50%, -50%); animation: rotate 2.5s linear infinite; }
+        .shroud-p2 { border-color: rgba(168, 85, 247, 0.8); }
+        @keyframes rotate { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="airspace">
+        <div id="priority-key">
+            <div style="color: #06b6d4; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #1e293b; padding-bottom: 8px;">PECK HIERARCHY</div>
+            <div class="key-item"><div class="key-dot" style="background:#ef4444"></div> P1: Life Critical</div>
+            <div class="key-item"><div class="key-dot" style="background:#a855f7"></div> P2: Sovereign (Shrouded)</div>
+            <div class="key-item"><div class="key-dot" style="background:#facc15"></div> P3: Public Safety</div>
+            <div class="key-item"><div class="key-dot" style="background:#3b82f6"></div> P4: Commercial</div>
+            <div class="key-item"><div class="key-dot" style="background:#94a3b8"></div> P5: Hobbyist</div>
+        </div>
+    </div>
+    
+    <div id="controls">
+        <button class="ctrl-btn p3-btn" onclick="spawnPriorityAsset('p3')">Launch P3 (Public Safety)</button>
+        <button class="ctrl-btn p2-btn" onclick="spawnPriorityAsset('p2')">Launch P2 (Ghost/Shrouded)</button>
+        <button class="ctrl-btn p1-btn" onclick="spawnPriorityAsset('p1')">Launch P1 (Life-Critical)</button>
+        <button class="ctrl-btn reset-btn" style="margin-left: auto;" onclick="resetSwarm()">Reset Grid</button>
+    </div>
+
+    <script>
+        const airspace = document.getElementById('airspace');
+        let swarm = []; 
+        let priorityAssets = []; 
+        const YIELD_RADIUS = 240;
+        const MAX_SWARM_COUNT = 35; 
+
+        function spawnSingleDrone(isInitial = false) {
+            const w = window.innerWidth || 1000;
+            const h = window.innerHeight || 800;
+            const type = Math.random() > 0.4 ? 'p4' : 'p5';
+            const el = document.createElement('div'); 
+            el.className = `drone ${type}`;
+            
+            let startX, startY, endX, endY, x, y;
+            const baseSpeed = 0.8 + Math.random() * 0.5; // Smooth, deliberate speed
+            const side = Math.floor(Math.random() * 4);
+
+            // Establish permanent, fixed Entrance and Exit points
+            if (side === 0) { // Top to Bottom
+                startX = Math.random() * w; startY = -50; 
+                endX = Math.random() * w; endY = h + 50; 
+            } else if (side === 1) { // Right to Left
+                startX = w + 50; startY = Math.random() * h; 
+                endX = -50; endY = Math.random() * h; 
+            } else if (side === 2) { // Bottom to Top
+                startX = Math.random() * w; startY = h + 50; 
+                endX = Math.random() * w; endY = -50; 
+            } else { // Left to Right
+                startX = -50; startY = Math.random() * h; 
+                endX = w + 50; endY = Math.random() * h; 
+            }
+
+            if (isInitial) {
+                // If initializing, drop them randomly along their assigned flight path
+                const progress = Math.random();
+                x = startX + (endX - startX) * progress;
+                y = startY + (endY - startY) * progress;
+            } else {
+                x = startX;
+                y = startY;
+            }
+
+            // Calculate initial vector strictly toward exit
+            const dx = endX - x; const dy = endY - y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const initialVx = (dx / dist) * baseSpeed;
+            const initialVy = (dy / dist) * baseSpeed;
+
+            const d = { 
+                el, type: parseInt(type.replace('p', '')), 
+                x, y, endX, endY, baseSpeed, 
+                vx: initialVx, vy: initialVy 
+            };
+            
+            el.style.left = x + 'px'; 
+            el.style.top = y + 'px';
+            airspace.appendChild(el); 
+            swarm.push(d);
+        }
+
+        function initSwarm() {
+            for (let i = 0; i < MAX_SWARM_COUNT; i++) {
+                spawnSingleDrone(true);
+            }
+        }
+
+        function spawnPriorityAsset(typeStr) {
+            const w = window.innerWidth || 1000;
+            const h = window.innerHeight || 800;
+            const container = document.createElement('div'); 
+            container.style.position = 'absolute';
+            
+            const typeInt = parseInt(typeStr.replace('p', ''));
+            if (typeInt === 1 || typeInt === 2) {
+                const shroud = document.createElement('div'); 
+                shroud.className = typeInt === 1 ? 'shroud' : 'shroud shroud-p2'; 
+                container.appendChild(shroud);
+            }
+            const dot = document.createElement('div'); 
+            dot.className = `drone ${typeStr}`; 
+            container.appendChild(dot);
+            
+            const side = Math.floor(Math.random() * 4); 
+            let x, y, vx, vy; 
+            const speed = 2.8; 
+            
+            if (side === 0) { x = -100; y = Math.random() * h; vx = speed; vy = 0; } 
+            else if (side === 1) { x = w + 100; y = Math.random() * h; vx = -speed; vy = 0; } 
+            else if (side === 2) { x = Math.random() * w; y = -100; vx = 0; vy = speed; } 
+            else { x = Math.random() * w; y = h + 100; vx = 0; vy = -speed; } 
+
+            container.style.left = x + 'px';
+            container.style.top = y + 'px';
+
+            airspace.appendChild(container); 
+            priorityAssets.push({ el: container, type: typeInt, x, y, vx, vy });
+        }
+
+        function resetSwarm() {
+            swarm.forEach(d => d.el.remove());
+            priorityAssets.forEach(a => a.el.remove());
+            swarm = [];
+            priorityAssets = [];
+            initSwarm();
+        }
+
+        function update() {
+            const w = window.innerWidth || 1000;
+            const h = window.innerHeight || 800;
+
+            // Handle Priority Assets
+            priorityAssets.forEach((a, i) => {
+                a.x += a.vx; a.y += a.vy; 
+                a.el.style.left = a.x + 'px'; a.el.style.top = a.y + 'px';
+                if (a.x > w + 200 || a.x < -200 || a.y > h + 200 || a.y < -200) { 
+                    a.el.remove(); priorityAssets.splice(i, 1); 
+                }
+            });
+
+            // Handle Commercial Swarm (Strict Waypoint Rerouting)
+            for (let i = swarm.length - 1; i >= 0; i--) {
+                let d = swarm[i];
+                let beingRepelled = false;
+                let pushX = 0;
+                let pushY = 0;
+                
+                // Repelling Math
+                priorityAssets.forEach(a => {
+                    const dx = d.x - a.x; const dy = d.y - a.y; 
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (d.type > a.type && dist < YIELD_RADIUS) { 
+                        beingRepelled = true; 
+                        const force = (YIELD_RADIUS - dist) / YIELD_RADIUS; 
+                        pushX += (dx / dist) * force * 10.0; // Hard, magnetic push out of the way
+                        pushY += (dy / dist) * force * 10.0;
+                    }
+                });
+                
+                if (beingRepelled) {
+                    d.el.classList.add('yielding');
+                    // Instant Brake & Slide: Zero out flight velocity, apply only the physical push
+                    d.vx = 0; 
+                    d.vy = 0;
+                    d.x += pushX;
+                    d.y += pushY;
+                } else {
+                    d.el.classList.remove('yielding');
+                    
+                    // Strict Recalculation: Point directly from CURRENT position to ORIGINAL exit point
+                    const toEndX = d.endX - d.x;
+                    const toEndY = d.endY - d.y;
+                    const distToEnd = Math.sqrt(toEndX*toEndX + toEndY*toEndY);
+                    
+                    if (distToEnd > 5) {
+                        const targetVx = (toEndX / distToEnd) * d.baseSpeed;
+                        const targetVy = (toEndY / distToEnd) * d.baseSpeed;
+                        
+                        // Snappy course correction without jitter
+                        d.vx += (targetVx - d.vx) * 0.2;
+                        d.vy += (targetVy - d.vy) * 0.2;
+                    }
+                    
+                    d.x += d.vx; 
+                    d.y += d.vy;
+                }
+                
+                d.el.style.left = d.x + 'px'; 
+                d.el.style.top = d.y + 'px';
+
+                // Check distance to final exit point to gracefully despawn and replace
+                const distFromEnd = Math.sqrt(Math.pow(d.x - d.endX, 2) + Math.pow(d.y - d.endY, 2));
+                if (distFromEnd < 20 || d.x < -200 || d.x > w + 200 || d.y < -200 || d.y > h + 200) {
+                    d.el.remove();
+                    swarm.splice(i, 1);
+                    spawnSingleDrone(); // Instantly replace off-grid
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
+        window.onload = () => {
+            initSwarm();
+            update();
+        };
+    </script>
+</body>
+</html>

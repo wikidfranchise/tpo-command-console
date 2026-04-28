@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TPO | Physical Evasion</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #airspace { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); }
+        
+        /* Tactical Control Bar */
+        #controls { height: 60px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 15px; z-index: 1000; }
+        .ctrl-btn { background: transparent; border: 1px solid #334155; color: #cbd5e1; padding: 10px 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .ctrl-btn:hover { background: #1e293b; border-color: #64748b; color: white; }
+        .ctrl-btn.p1-btn { border-color: #ef4444; color: #ef4444; }
+        .ctrl-btn.p1-btn:hover { background: rgba(239, 68, 68, 0.1); }
+        .ctrl-btn.p2-btn { border-color: #a855f7; color: #a855f7; }
+        .ctrl-btn.p2-btn:hover { background: rgba(168, 85, 247, 0.1); }
+
+        .drone { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; }
+        .p4 { width: 30px; height: 30px; background-color: #3b82f6; box-shadow: 0 0 25px #3b82f6; transition: background-color 0.2s; }
+        .p4.yielding { background-color: #f97316; box-shadow: 0 0 50px #f97316; z-index: 5; } /* Neon Orange Yield */
+
+        .p1 { width: 26px; height: 26px; background-color: #ef4444; border-radius: 50%; box-shadow: 0 0 30px #ef4444; z-index: 60; }
+        .p1-shroud { position: absolute; width: 130px; height: 130px; border: 6px dashed rgba(239, 68, 68, 0.95); border-radius: 50%; transform: translate(-50%, -50%); animation: rotate 1.5s linear infinite, strobe 0.1s infinite; }
+
+        .p2 { width: 24px; height: 24px; background-color: #a855f7; border-radius: 50%; box-shadow: 0 0 25px #a855f7; z-index: 50; }
+        .p2-shroud { position: absolute; width: 110px; height: 110px; border: 5px dashed rgba(168, 85, 247, 0.85); border-radius: 50%; transform: translate(-50%, -50%); animation: rotate 2s linear infinite; }
+
+        @keyframes rotate { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+        @keyframes strobe { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    </style>
+</head>
+<body>
+    <div id="airspace"></div>
+    <div id="controls">
+        <span style="color: #64748b; font-size: 11px; font-weight: bold; margin-right: 10px;">MANUAL OVERRIDE:</span>
+        <button class="ctrl-btn" onclick="spawnCommercial(10, false)">+ Spawn Commercial Traffic</button>
+        <button class="ctrl-btn p1-btn" onclick="spawnPriorityAsset('p1')">Deploy P1 (Life-Critical)</button>
+        <button class="ctrl-btn p2-btn" onclick="spawnPriorityAsset('p2')">Deploy P2 (Sovereign Ghost)</button>
+        <button class="ctrl-btn" style="border-color: #fbbf24; color: #fbbf24; margin-left: auto;" onclick="clearAirspace()">Reset Airspace</button>
+    </div>
+
+    <script>
+        const airspace = document.getElementById('airspace');
+        let priorityAssets = []; 
+        let p4Drones = []; 
+        const YIELD_RADIUS = 280;
+
+        function spawnSingleCommercial(isInitial = false) {
+            const w = window.innerWidth || 1000;
+            const h = window.innerHeight || 800;
+            const el = document.createElement('div');
+            el.className = 'drone p4';
+            
+            let startX, startY, endX, endY, x, y;
+            const baseSpeed = 0.8 + Math.random() * 0.5; // Smooth, deliberate speed
+            const side = Math.floor(Math.random() * 4);
+
+            // Establish permanent, fixed Entrance and Exit points
+            if (side === 0) { // Top to Bottom
+                startX = Math.random() * w; startY = -50; 
+                endX = Math.random() * w; endY = h + 50; 
+            } else if (side === 1) { // Right to Left
+                startX = w + 50; startY = Math.random() * h; 
+                endX = -50; endY = Math.random() * h; 
+            } else if (side === 2) { // Bottom to Top
+                startX = Math.random() * w; startY = h + 50; 
+                endX = Math.random() * w; endY = -50; 
+            } else { // Left to Right
+                startX = -50; startY = Math.random() * h; 
+                endX = w + 50; endY = Math.random() * h; 
+            }
+
+            if (isInitial) {
+                // Pre-populate the screen on load along their vector
+                const progress = Math.random();
+                x = startX + (endX - startX) * progress;
+                y = startY + (endY - startY) * progress;
+            } else {
+                // Spawn continuously off the grid to create transit flow
+                x = startX;
+                y = startY;
+            }
+
+            // Calculate the ideal vector toward the exit point
+            const dx = endX - x; const dy = endY - y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const initialVx = (dx / dist) * baseSpeed;
+            const initialVy = (dy / dist) * baseSpeed;
+
+            const d = { 
+                el, x, y, endX, endY, baseSpeed, 
+                vx: initialVx, vy: initialVy 
+            };
+            
+            el.style.left = x + 'px'; 
+            el.style.top = y + 'px';
+            airspace.appendChild(el); 
+            p4Drones.push(d);
+        }
+
+        function spawnCommercial(amount, isInitial = false) {
+            for (let i = 0; i < amount; i++) {
+                spawnSingleCommercial(isInitial);
+            }
+        }
+
+        function spawnPriorityAsset(type) {
+            const w = window.innerWidth || 1000;
+            const h = window.innerHeight || 800;
+            const el = document.createElement('div');
+            
+            if (type === 'p1') { 
+                el.className = 'drone p1'; 
+                const shroud = document.createElement('div'); 
+                shroud.className = 'p1-shroud'; 
+                el.appendChild(shroud); 
+            } else if (type === 'p2') { 
+                el.className = 'drone p2'; 
+                const shroud = document.createElement('div'); 
+                shroud.className = 'p2-shroud'; 
+                el.appendChild(shroud); 
+            } 
+
+            const side = Math.floor(Math.random() * 4); 
+            let x, y, vx, vy;
+            const speedMult = (type === 'p1') ? 3.0 : 2.5; // High speed for visual impact
+
+            // Spawn firmly off-screen and drive inward
+            if (side === 0) { x = -100; y = Math.random() * h; vx = speedMult; vy = (Math.random() - 0.5) * 1.0; }
+            if (side === 1) { x = w + 100; y = Math.random() * h; vx = -speedMult; vy = (Math.random() - 0.5) * 1.0; }
+            if (side === 2) { x = Math.random() * w; y = -100; vx = (Math.random() - 0.5) * 1.0; vy = speedMult; }
+            if (side === 3) { x = Math.random() * w; y = h + 100; vx = (Math.random() - 0.5) * 1.0; vy = -speedMult; }
+
+            el.style.left = x + 'px'; el.style.top = y + 'px'; 
+            airspace.appendChild(el);
+            priorityAssets.push({ el, x, y, vx, vy, type });
+        }
+
+        function clearAirspace() {
+            priorityAssets.forEach(a => a.el.remove());
+            p4Drones.forEach(p => p.el.remove());
+            priorityAssets = [];
+            p4Drones = [];
+            spawnCommercial(30, true); // Reset to base state immediately on grid
+        }
+
+        function update() {
+            const w = window.innerWidth || 1000;
+            const h = window.innerHeight || 800;
+
+            // Handle Priority Assets
+            for (let i = priorityAssets.length - 1; i >= 0; i--) {
+                const a = priorityAssets[i]; 
+                a.x += a.vx; a.y += a.vy; 
+                a.el.style.left = a.x + 'px'; a.el.style.top = a.y + 'px';
+                
+                // Remove if they fly too far off-screen
+                if (a.x < -300 || a.x > w + 300 || a.y < -300 || a.y > h + 300) { 
+                    a.el.remove(); priorityAssets.splice(i, 1); 
+                }
+            }
+
+            // Handle Commercial Drones (Strict Waypoint Rerouting)
+            for (let i = p4Drones.length - 1; i >= 0; i--) {
+                let d = p4Drones[i];
+                let beingRepelled = false;
+                let pushX = 0;
+                let pushY = 0;
+                
+                // Repelling Math
+                priorityAssets.forEach(a => {
+                    const dx = d.x - a.x; const dy = d.y - a.y; 
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < YIELD_RADIUS && dist > 0) { 
+                        beingRepelled = true; 
+                        const force = (YIELD_RADIUS - dist) / YIELD_RADIUS; 
+                        pushX += (dx / dist) * force * 12.0; // Very hard magnetic push
+                        pushY += (dy / dist) * force * 12.0;
+                    }
+                });
+                
+                if (beingRepelled) {
+                    d.el.classList.add('yielding');
+                    // Instant Brake & Slide: Zero out flight velocity, apply only the physical push
+                    d.vx = 0; 
+                    d.vy = 0;
+                    d.x += pushX;
+                    d.y += pushY;
+                } else {
+                    d.el.classList.remove('yielding');
+                    
+                    // Strict Recalculation: Point directly from CURRENT position to ORIGINAL exit point
+                    const toEndX = d.endX - d.x;
+                    const toEndY = d.endY - d.y;
+                    const distToEnd = Math.sqrt(toEndX*toEndX + toEndY*toEndY);
+                    
+                    if (distToEnd > 5) {
+                        const targetVx = (toEndX / distToEnd) * d.baseSpeed;
+                        const targetVy = (toEndY / distToEnd) * d.baseSpeed;
+                        
+                        // Snappy course correction without jitter
+                        d.vx += (targetVx - d.vx) * 0.2;
+                        d.vy += (targetVy - d.vy) * 0.2;
+                    }
+                    
+                    d.x += d.vx; 
+                    d.y += d.vy;
+                }
+                
+                d.el.style.left = d.x + 'px'; 
+                d.el.style.top = d.y + 'px';
+
+                // Check distance to final exit point to gracefully despawn and replace
+                const distFromEnd = Math.sqrt(Math.pow(d.x - d.endX, 2) + Math.pow(d.y - d.endY, 2));
+                if (distFromEnd < 20 || d.x < -200 || d.x > w + 200 || d.y < -200 || d.y > h + 200) {
+                    d.el.remove();
+                    p4Drones.splice(i, 1);
+                    spawnSingleCommercial(false); // Instantly replace off-grid
+                }
+            }
+            
+            requestAnimationFrame(update);
+        }
+
+        // Start with traffic on screen immediately
+        window.onload = () => { 
+            spawnCommercial(30, true); 
+            update(); 
+        };
+    </script>
+</body>
+</html>

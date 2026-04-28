@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TPO | Edge Latency — Sovereign Node Test</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #0f172a; font-family: 'Segoe UI', sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        #dashboard { height: 180px; background: #020617; border-bottom: 2px solid #334155; display: flex; gap: 20px; padding: 15px; box-sizing: border-box; }
+        .stat-box { flex: 1; background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
+        .stat-label { font-size: 10px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; position: absolute; top: 12px; }
+        .stat-value { font-size: 58px; font-weight: bold; font-family: 'Courier New', monospace; color: #10b981; line-height: 1; }
+        .stat-unit { font-size: 14px; color: #64748b; }
+
+        #visualization { flex-grow: 1; position: relative; background: radial-gradient(circle at center, #1e293b 0%, #020617 100%); overflow: hidden; }
+        .track { position: absolute; left: 10%; right: 10%; height: 2px; background: #334155; }
+        .track-cloud { top: 30%; } .track-tpo { top: 70%; }
+        
+        .drone { position: absolute; width: 20px; height: 20px; background: #0ea5e9; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 15px #0ea5e9; z-index: 10; }
+        .hazard { position: absolute; left: 80%; width: 40px; height: 40px; background: #ef4444; transform: translate(-50%, -50%); border-radius: 4px; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+        .stop-point { position: absolute; width: 4px; height: 30px; background: #fbbf24; transform: translate(-50%, -50%); box-shadow: 0 0 10px #fbbf24; display: none; }
+        .track-label { position: absolute; left: 10%; transform: translateY(-30px); font-size: 14px; font-weight: bold; letter-spacing: 2px; color: #94a3b8; }
+
+        /* Tactical Controls */
+        #controls { height: 60px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 1000; }
+        .ctrl-btn { background: #0f172a; border: 1px solid #334155; color: #cbd5e1; padding: 10px 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: 4px; }
+        .ctrl-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+    </style>
+</head>
+<body>
+    <div id="dashboard">
+        <div class="stat-box"><div class="stat-label">Velocity</div><div class="stat-value">80</div><div class="stat-unit">Feet per Second</div></div>
+        <div class="stat-box"><div class="stat-label">Network Ping</div><div class="stat-value" id="ping-disp">0</div><div class="stat-unit">Milliseconds</div></div>
+        <div class="stat-box"><div class="stat-label">Blind Travel (Braking Distance)</div><div class="stat-value" id="dist-disp" style="color:#ef4444">0</div><div class="stat-unit">Feet</div></div>
+    </div>
+    
+    <div id="visualization">
+        <div class="track-label" style="top: 30%;">LEGACY CLOUD ARCHITECTURE (5 HOPS)</div>
+        <div class="track track-cloud"></div>
+        <div class="hazard" style="top: 30%;"></div>
+        <div class="drone" id="drone-cloud" style="top: 30%; left: 10%;"></div>
+        <div class="stop-point" id="stop-cloud" style="top: 30%;"></div>
+
+        <div class="track-label" style="top: 70%;">TPO SOVEREIGN EDGE (1 HOP)</div>
+        <div class="track track-tpo"></div>
+        <div class="hazard" style="top: 70%;"></div>
+        <div class="drone" id="drone-tpo" style="top: 70%; left: 10%;"></div>
+        <div class="stop-point" id="stop-tpo" style="top: 70%;"></div>
+    </div>
+
+    <div id="controls">
+        <button class="ctrl-btn" onclick="runCloudTest()">Execute: Cloud Test (480ms)</button>
+        <button class="ctrl-btn" style="border-color:#10b981; color:#10b981" onclick="runTPOTest()">Execute: TPO Edge Test (52ms)</button>
+        <button class="ctrl-btn" onclick="resetSim()">Reset Data</button>
+    </div>
+
+    <script>
+        const FEET_PER_MS = 80 / 1000;
+        function animateDrone(type, targetMs) {
+            const drone = document.getElementById(`drone-${type}`); const stopMarker = document.getElementById(`stop-${type}`);
+            const pingDisp = document.getElementById('ping-disp'); const distDisp = document.getElementById('dist-disp');
+            const startX = 10; const hazardX = 80; let currentX = startX; let currentMs = 0;
+
+            drone.style.left = startX + '%'; stopMarker.style.display = 'none';
+            pingDisp.style.color = targetMs > 100 ? '#ef4444' : '#10b981';
+            distDisp.style.color = targetMs > 100 ? '#ef4444' : '#10b981';
+
+            function step() {
+                if (currentMs < targetMs) {
+                    currentMs += 8; currentX += 0.5;
+                    if (currentX > hazardX) currentX = hazardX;
+                    drone.style.left = currentX + '%'; pingDisp.innerText = currentMs; distDisp.innerText = (currentMs * FEET_PER_MS).toFixed(1);
+                    requestAnimationFrame(step);
+                } else {
+                    pingDisp.innerText = targetMs; distDisp.innerText = (targetMs * FEET_PER_MS).toFixed(1);
+                    stopMarker.style.left = currentX + '%'; stopMarker.style.display = 'block';
+                    if(targetMs > 100) drone.style.background = '#ef4444'; else drone.style.background = '#10b981';
+                }
+            }
+            requestAnimationFrame(step);
+        }
+        function runCloudTest() { animateDrone('cloud', 480); }
+        function runTPOTest() { animateDrone('tpo', 52); }
+        function resetSim() {
+            document.getElementById('drone-cloud').style.left = '10%'; document.getElementById('drone-tpo').style.left = '10%';
+            document.getElementById('drone-cloud').style.background = '#0ea5e9'; document.getElementById('drone-tpo').style.background = '#0ea5e9';
+            document.getElementById('stop-cloud').style.display = 'none'; document.getElementById('stop-tpo').style.display = 'none';
+            document.getElementById('ping-disp').innerText = "0"; document.getElementById('dist-disp').innerText = "0";
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TPO | Blade Architecture & Data Sovereignty</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #020617; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        #schematic-container { flex-grow: 1; position: relative; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); padding: 30px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* Schematic Blocks */
+        .block { background: rgba(15, 23, 42, 0.9); border: 2px solid #334155; border-radius: 8px; padding: 15px; text-align: center; position: relative; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: all 0.3s ease; }
+        .block-title { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; font-weight: bold; }
+        .block-value { font-size: 14px; color: #cbd5e1; font-family: monospace; }
+        
+        #drone-asset { width: 160px; }
+        #base-station { width: 360px; border-color: #06b6d4; background: rgba(6, 182, 212, 0.05); padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        #satellite-uplink { width: 160px; }
+        #cloud-endpoints { width: 200px; display: flex; flex-direction: column; gap: 15px; }
+
+        /* Internal Base Station Components */
+        .diode { background: #1e293b; border: 1px dashed #64748b; padding: 8px; font-size: 10px; letter-spacing: 1px; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .diode span { font-size: 16px; font-weight: bold; }
+        .blade-rack { display: flex; flex-direction: column; gap: 10px; border: 1px solid #334155; padding: 10px; background: #020617; border-radius: 4px; }
+        .blade { border: 2px solid #334155; padding: 10px; text-align: left; transition: all 0.3s ease; }
+        .blade .b-title { font-size: 11px; font-weight: bold; margin-bottom: 3px; color: white; }
+        .blade .b-os { font-size: 9px; color: #64748b; font-family: monospace; }
+        
+        /* Specific States */
+        .active-p3 { border-color: #facc15 !important; box-shadow: 0 0 20px rgba(250, 204, 21, 0.3) !important; }
+        .active-p3 .b-title { color: #facc15; }
+        .active-p1 { border-color: #ef4444 !important; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important; }
+        .active-p1 .b-title { color: #ef4444; }
+        .locked { border-color: #1e293b !important; opacity: 0.3; }
+
+        /* Data Flow Lines (SVGs) */
+        svg.data-lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+        .flow-path { fill: none; stroke: #334155; stroke-width: 3; stroke-dasharray: 10, 10; transition: stroke 0.3s, opacity 0.3s; opacity: 0.2; }
+        
+        /* Flow Animations */
+        .flow-request { stroke: #06b6d4; animation: dashFlow 0.5s linear infinite; opacity: 1; stroke-width: 4; }
+        .flow-active-p3 { stroke: #facc15; animation: dashFlow 1s linear infinite; opacity: 1; }
+        .flow-active-p1 { stroke: #ef4444; animation: dashFlow 0.5s linear infinite; stroke-width: 4; opacity: 1; }
+        @keyframes dashFlow { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
+
+        /* Latency Labels */
+        .latency-label { position: absolute; background: rgba(2, 6, 23, 0.9); border: 1px solid #06b6d4; color: #06b6d4; font-family: monospace; font-size: 11px; padding: 4px 8px; border-radius: 4px; opacity: 0; transition: opacity 0.3s; z-index: 15; font-weight: bold; text-align: center; transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(6, 182, 212, 0.3); }
+        .lat-total { font-size: 13px; border-color: #10b981; color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+
+        /* TPO Arbitration Engine */
+        #tpo-arbitration { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #0f172a; border: 2px solid #06b6d4; color: #06b6d4; padding: 4px 12px; font-size: 10px; font-weight: bold; border-radius: 20px; letter-spacing: 1px; z-index: 20; transition: all 0.3s; }
+        .arb-override { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; box-shadow: 0 0 15px #ef4444; }
+
+        /* Tactical Controls */
+        #controls { height: 70px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 1000; }
+        .ctrl-btn { background: #0f172a; border: 1px solid #334155; color: #cbd5e1; padding: 10px 16px; font-size: 11px; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .ctrl-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .p3-btn { border-color: #facc15; color: #facc15; } .p3-btn:hover { background: rgba(250, 204, 21, 0.1); }
+        .p1-btn { border-color: #ef4444; color: #ef4444; } .p1-btn:hover { background: rgba(239, 68, 68, 0.1); }
+        
+        #status-bar { position: absolute; bottom: 85px; left: 30px; font-family: monospace; font-size: 13px; color: #94a3b8; background: rgba(0,0,0,0.8); padding: 10px 20px; border: 1px solid #334155; }
+    </style>
+</head>
+<body>
+
+    <div id="schematic-container">
+        <svg class="data-lines" id="flow-svg">
+            <path id="line-in" class="flow-path" d="M 0 0 L 0 0" />
+            <path id="line-out" class="flow-path" d="M 0 0 L 0 0" />
+            <path id="line-fbi" class="flow-path" d="M 0 0 L 0 0" />
+            <path id="line-cbp" class="flow-path" d="M 0 0 L 0 0" />
+            <path id="line-dea" class="flow-path" d="M 0 0 L 0 0" />
+            <path id="line-tribe" class="flow-path" d="M 0 0 L 0 0" />
+        </svg>
+
+        <div id="lat-edge" class="latency-label">26ms<br>Edge RF</div>
+        <div id="lat-sat" class="latency-label">26ms<br>LEO Backhaul</div>
+        <div id="lat-total" class="latency-label lat-total">MAX LATENCY: 52ms</div>
+
+        <div class="block" id="drone-asset">
+            <div class="block-title">Agnostic Asset</div>
+            <div class="block-value">Nightingale UAV</div>
+            <div style="font-size: 9px; color: #64748b; margin-top: 8px;">Payload: Narcan 4mg<br>Camera: EO/IR Active</div>
+        </div>
+
+        <div class="block" id="base-station">
+            <div id="tpo-arbitration">TPO GATEKEEPER : STANDBY</div>
+            <div class="block-title" style="color: #06b6d4;">Sovereign Node Enclosure</div>
+            
+            <div class="diode">
+                UNIDIRECTIONAL DIODE <span>&#8594;</span> (HARDWARE AIR-GAP)
+            </div>
+
+            <div class="blade-rack">
+                <div class="blade" id="blade-fbi">
+                    <div class="b-title">BLADE A: FBI (P3)</div>
+                    <div class="b-os">OS: CJIS-Linux | Tun: WireGuard</div>
+                </div>
+                <div class="blade" id="blade-cbp">
+                    <div class="b-title">BLADE B: CBP (P3)</div>
+                    <div class="b-os">OS: DHS-Core | Tun: IPSec</div>
+                </div>
+                <div class="blade" id="blade-dea">
+                    <div class="b-title">BLADE C: DEA (P3)</div>
+                    <div class="b-os">OS: EPIC-Node | Tun: WireGuard</div>
+                </div>
+                <div class="blade" id="blade-tribe">
+                    <div class="b-title">BLADE D: Tribal PD (P1)</div>
+                    <div class="b-os">OS: Sovereign Registry OS</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="block" id="satellite-uplink">
+            <div class="block-title">LEO Egress</div>
+            <div class="block-value">Starlink Terminal</div>
+            <div style="font-size: 9px; color: #64748b; margin-top: 8px;">Multiplexed Sockets<br>Zero Terrestrial Hops</div>
+        </div>
+
+        <div id="cloud-endpoints">
+            <div class="block" id="cloud-fbi">
+                <div class="block-title">Tenant A Cloud</div>
+                <div class="block-value" style="color: #facc15; font-size: 12px;">AWS GovCloud (FBI)</div>
+            </div>
+            <div class="block" id="cloud-cbp">
+                <div class="block-title">Tenant B Cloud</div>
+                <div class="block-value" style="color: #facc15; font-size: 12px;">DHS Secure Cloud</div>
+            </div>
+            <div class="block" id="cloud-dea">
+                <div class="block-title">Tenant C Cloud</div>
+                <div class="block-value" style="color: #facc15; font-size: 12px;">EPIC Database (DEA)</div>
+            </div>
+            <div class="block" id="cloud-tribe">
+                <div class="block-title">Tenant D Cloud</div>
+                <div class="block-value" style="color: #ef4444; font-size: 12px;">Sovereign (Tribe)</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="status-bar">SYS_STATUS: NODE DORMANT. AWAITING LESSEE COMMAND.</div>
+
+    <div id="controls">
+        <button class="ctrl-btn p3-btn" onclick="startMission('fbi')">Execute FBI (P3)</button>
+        <button class="ctrl-btn p3-btn" onclick="startMission('cbp')">Execute CBP (P3)</button>
+        <button class="ctrl-btn p3-btn" onclick="startMission('dea')">Execute DEA (P3)</button>
+        <button class="ctrl-btn p1-btn" onclick="triggerOverride()">LCR OVERRIDE (P1 Tribe)</button>
+        <button class="ctrl-btn" onclick="resetSchematic()">Reset Node</button>
+    </div>
+
+    <script>
+        const ui = {
+            drone: document.getElementById('drone-asset'),
+            blades: {
+                fbi: document.getElementById('blade-fbi'),
+                cbp: document.getElementById('blade-cbp'),
+                dea: document.getElementById('blade-dea'),
+                tribe: document.getElementById('blade-tribe')
+            },
+            clouds: {
+                fbi: document.getElementById('cloud-fbi'),
+                cbp: document.getElementById('cloud-cbp'),
+                dea: document.getElementById('cloud-dea'),
+                tribe: document.getElementById('cloud-tribe')
+            },
+            gatekeeper: document.getElementById('tpo-arbitration'),
+            status: document.getElementById('status-bar'),
+            lines: {
+                in: document.getElementById('line-in'),
+                out: document.getElementById('line-out'),
+                fbi: document.getElementById('line-fbi'),
+                cbp: document.getElementById('line-cbp'),
+                dea: document.getElementById('line-dea'),
+                tribe: document.getElementById('line-tribe')
+            },
+            labels: {
+                edge: document.getElementById('lat-edge'),
+                sat: document.getElementById('lat-sat'),
+                total: document.getElementById('lat-total')
+            }
+        };
+
+        let activeP3 = null;
+        let sequenceTimer = null;
+
+        function resetLines() {
+            Object.values(ui.lines).forEach(l => {
+                l.classList.remove('flow-active-p3', 'flow-active-p1', 'flow-request');
+            });
+            Object.values(ui.labels).forEach(lbl => lbl.style.opacity = '0');
+            clearTimeout(sequenceTimer);
+        }
+
+        function resetSchematic() {
+            resetLines();
+            activeP3 = null;
+            ui.drone.className = 'block';
+            
+            Object.values(ui.blades).forEach(b => b.className = 'blade');
+            Object.values(ui.clouds).forEach(c => c.className = 'block');
+            
+            ui.gatekeeper.className = '';
+            ui.gatekeeper.innerText = "TPO GATEKEEPER : STANDBY";
+            
+            ui.status.innerText = "SYS_STATUS: NODE DORMANT. AWAITING LESSEE COMMAND.";
+            ui.status.style.color = "#94a3b8";
+        }
+
+        function startMission(agency) {
+            resetSchematic();
+            activeP3 = agency;
+            const agencyNames = { fbi: "FBI", cbp: "CBP", dea: "DEA" };
+            
+            // Step 1: Drone Token Request (26ms)
+            ui.status.innerText = `SYS_STATUS: ${agencyNames[agency]} ASSET INITIATING TOKEN REQUEST...`;
+            ui.status.style.color = "#06b6d4";
+            ui.gatekeeper.innerText = "TPO GATEKEEPER : AUTHENTICATING";
+            
+            ui.lines.in.classList.add('flow-request');
+            ui.labels.edge.style.opacity = '1';
+
+            sequenceTimer = setTimeout(() => {
+                // Step 2: LEO Sync & Base Command (26ms)
+                ui.status.innerText = `SYS_STATUS: VERIFYING REGISTRY VIA LEO BACKHAUL...`;
+                ui.lines.out.classList.add('flow-request');
+                ui.labels.sat.style.opacity = '1';
+
+                setTimeout(() => {
+                    // Step 3: Mission Executed (52ms Math Locked)
+                    ui.labels.total.style.opacity = '1';
+                    ui.status.innerText = `SYS_STATUS: 52ms LATENCY VERIFIED. P3 AUTHORIZED. VIDEO STREAMING TO ${agencyNames[agency]} BLADE.`;
+                    ui.status.style.color = "#facc15";
+                    ui.gatekeeper.innerText = "TPO GATEKEEPER : P3 ACTIVE";
+
+                    ui.drone.classList.add('active-p3');
+                    ui.blades[agency].classList.add('active-p3');
+                    ui.clouds[agency].classList.add('active-p3');
+                    
+                    ui.lines.in.classList.replace('flow-request', 'flow-active-p3');
+                    ui.lines.out.classList.replace('flow-request', 'flow-active-p3');
+                    ui.lines[agency].classList.add('flow-active-p3');
+                }, 1000);
+            }, 1000);
+        }
+
+        function triggerOverride() {
+            if (activeP3) {
+                ui.blades[activeP3].classList.remove('active-p3');
+                ui.clouds[activeP3].classList.remove('active-p3');
+                ui.blades[activeP3].classList.add('locked');
+                ui.clouds[activeP3].classList.add('locked');
+            }
+            
+            resetLines();
+
+            // Step 1: Immediate Override Execution (26ms)
+            ui.status.innerText = "SYS_STATUS: P1 LCR TRIGGERED. INITIATING 26ms KINETIC OVERRIDE...";
+            ui.status.style.color = "#06b6d4";
+            
+            ui.gatekeeper.classList.add('arb-override');
+            ui.gatekeeper.innerText = "TPO ARBITRATION: P1 LCR PREEMPTION";
+
+            ui.lines.in.classList.add('flow-active-p1');
+            ui.labels.edge.style.opacity = '1';
+
+            sequenceTimer = setTimeout(() => {
+                // Step 2: LEO Sync (26ms)
+                ui.status.innerText = "SYS_STATUS: P3 TOKEN REVOKED. SYNCING P1 STATE TO MESH...";
+                ui.lines.out.classList.add('flow-active-p1');
+                ui.labels.sat.style.opacity = '1';
+
+                setTimeout(() => {
+                    // Step 3: Full Reroute
+                    ui.labels.total.style.opacity = '1';
+                    ui.status.innerText = "SYS_STATUS: 52ms OVERRIDE SECURED. ASSET REROUTED FOR MEDICAL DROP.";
+                    ui.status.style.color = "#ef4444";
+
+                    ui.drone.classList.remove('active-p3');
+                    ui.drone.classList.add('active-p1');
+                    ui.blades.tribe.classList.add('active-p1');
+                    ui.clouds.tribe.classList.add('active-p1');
+                    
+                    ui.lines.tribe.classList.add('flow-active-p1');
+                }, 1000);
+            }, 1000);
+        }
+
+        function resizeSVG() {
+            const getCenter = (el) => {
+                const rect = el.getBoundingClientRect();
+                const containerRect = document.getElementById('schematic-container').getBoundingClientRect();
+                return { x: rect.left - containerRect.left + rect.width / 2, y: rect.top - containerRect.top + rect.height / 2 };
+            };
+
+            const drone = getCenter(ui.drone);
+            const base = getCenter(document.getElementById('base-station'));
+            const sat = getCenter(document.getElementById('satellite-uplink'));
+
+            // Lines
+            ui.lines.in.setAttribute('d', `M ${drone.x + 80} ${drone.y} L ${base.x - 180} ${base.y}`);
+            ui.lines.out.setAttribute('d', `M ${base.x + 180} ${base.y} L ${sat.x - 80} ${sat.y}`);
+            
+            const endpoints = ['fbi', 'cbp', 'dea', 'tribe'];
+            endpoints.forEach(agency => {
+                const cloud = getCenter(ui.clouds[agency]);
+                ui.lines[agency].setAttribute('d', `M ${sat.x + 80} ${sat.y} C ${sat.x + 130} ${sat.y}, ${cloud.x - 130} ${cloud.y}, ${cloud.x - 100} ${cloud.y}`);
+            });
+
+            // Update Latency Label Positions dynamically
+            ui.labels.edge.style.left = `${(drone.x + 80 + base.x - 180) / 2}px`;
+            ui.labels.edge.style.top = `${drone.y - 25}px`;
+
+            ui.labels.sat.style.left = `${(base.x + 180 + sat.x - 80) / 2}px`;
+            ui.labels.sat.style.top = `${sat.y - 25}px`;
+
+            ui.labels.total.style.left = `${base.x}px`;
+            ui.labels.total.style.top = `${base.y + 195}px`;
+        }
+
+        window.addEventListener('resize', resizeSVG);
+        window.onload = () => { setTimeout(resizeSVG, 100); };
+    </script>
+</body>
+</html>

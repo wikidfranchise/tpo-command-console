@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TPO | Live Sovereign Command Console</title>
+    <style>
+        body { margin: 0; background-color: #020617; color: white; font-family: sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 300px; background: rgba(15, 23, 42, 0.95); border-right: 1px solid #06b6d4; display: flex; flex-direction: column; z-index: 10; box-shadow: 2px 0 15px rgba(6, 182, 212, 0.2); }
+        
+        .brand { padding: 20px 15px; text-align: center; border-bottom: 1px solid rgba(6, 182, 212, 0.2); margin-bottom: 20px; display: flex; align-items: center; justify-content: center;}
+        .brand img { width: 100%; max-width: 240px; height: auto; filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.3)); }
+        
+        .nav-btn { background: none; border: none; color: #94a3b8; padding: 18px 30px; text-align: left; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; }
+        .nav-btn:hover { background: rgba(30, 41, 59, 0.8); color: white; }
+        .nav-btn.active { background: rgba(6, 182, 212, 0.1); color: #06b6d4; border-left: 3px solid #06b6d4; font-weight: bold; }
+        
+        #content { flex-grow: 1; position: relative; background: #000; }
+        iframe { width: 100%; height: 100%; border: none; display: none; }
+        iframe.active { display: block; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div class="brand">
+            <img src="thelowcbp.jpg" alt="The Pecking Order — TPO — Keeper of The Low">
+        </div>
+        <button class="nav-btn active" onclick="loadSim('1-Physical-Evasion.html', this)">1. Kinetic Evasion</button>
+        <button class="nav-btn" onclick="loadSim('2-Swarm-Deconfliction.html', this)">2. Swarm Control</button>
+        <button class="nav-btn" onclick="loadSim('3-Radar-Detection.html', this)">3. Radar / Kill Box</button>
+        <button class="nav-btn" onclick="loadSim('4-Speed-Test.html', this)">4. Edge Latency</button>
+        <button class="nav-btn" onclick="loadSim('5-Hardware-Data-Flow.html', this)">5. Blade Architecture</button>
+        <button class="nav-btn" onclick="loadSim('6-Audit-Ledger.html', this)">6. Audit Ledger</button>
+    </div>
+    
+    <div id="content">
+        <iframe id="sim-frame" src="1-Physical-Evasion.html" class="active"></iframe>
+    </div>
+
+    <script>
+        function loadSim(url, btn) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('sim-frame').src = url;
+        }
+    </script>
+</body>
+</html>
