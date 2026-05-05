@@ -2,322 +2,1342 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TPO | Blade Architecture & Data Sovereignty</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Sovereign Node — Drone-in-a-Box · Hardware Architecture</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #020617; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        #schematic-container { flex-grow: 1; position: relative; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); padding: 30px; display: flex; justify-content: space-between; align-items: center; }
-        
-        /* Schematic Blocks */
-        .block { background: rgba(15, 23, 42, 0.9); border: 2px solid #334155; border-radius: 8px; padding: 15px; text-align: center; position: relative; z-index: 10; box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: all 0.3s ease; }
-        .block-title { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; font-weight: bold; }
-        .block-value { font-size: 14px; color: #cbd5e1; font-family: monospace; }
-        
-        #drone-asset { width: 160px; }
-        #base-station { width: 360px; border-color: #06b6d4; background: rgba(6, 182, 212, 0.05); padding: 20px; display: flex; flex-direction: column; gap: 15px; }
-        #satellite-uplink { width: 160px; }
-        #cloud-endpoints { width: 200px; display: flex; flex-direction: column; gap: 15px; }
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(ellipse at center, #0a1530 0%, #020617 100%); }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
 
-        /* Internal Base Station Components */
-        .diode { background: #1e293b; border: 1px dashed #64748b; padding: 8px; font-size: 10px; letter-spacing: 1px; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 10px; }
-        .diode span { font-size: 16px; font-weight: bold; }
-        .blade-rack { display: flex; flex-direction: column; gap: 10px; border: 1px solid #334155; padding: 10px; background: #020617; border-radius: 4px; }
-        .blade { border: 2px solid #334155; padding: 10px; text-align: left; transition: all 0.3s ease; }
-        .blade .b-title { font-size: 11px; font-weight: bold; margin-bottom: 3px; color: white; }
-        .blade .b-os { font-size: 9px; color: #64748b; font-family: monospace; }
-        
-        /* Specific States */
-        .active-p3 { border-color: #facc15 !important; box-shadow: 0 0 20px rgba(250, 204, 21, 0.3) !important; }
-        .active-p3 .b-title { color: #facc15; }
-        .active-p1 { border-color: #ef4444 !important; box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important; }
-        .active-p1 .b-title { color: #ef4444; }
-        .locked { border-color: #1e293b !important; opacity: 0.3; }
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #67e8f9; font-weight: bold; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); max-width: 55%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Data Flow Lines (SVGs) */
-        svg.data-lines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
-        .flow-path { fill: none; stroke: #334155; stroke-width: 3; stroke-dasharray: 10, 10; transition: stroke 0.3s, opacity 0.3s; opacity: 0.2; }
-        
-        /* Flow Animations */
-        .flow-request { stroke: #06b6d4; animation: dashFlow 0.5s linear infinite; opacity: 1; stroke-width: 4; }
-        .flow-active-p3 { stroke: #facc15; animation: dashFlow 1s linear infinite; opacity: 1; }
-        .flow-active-p1 { stroke: #ef4444; animation: dashFlow 0.5s linear infinite; stroke-width: 4; opacity: 1; }
-        @keyframes dashFlow { from { stroke-dashoffset: 20; } to { stroke-dashoffset: 0; } }
+        #brand-mark { position: absolute; bottom: 88px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 99; pointer-events: none; background: rgba(0,0,0,0.55); padding: 6px 14px; border-radius: 4px; backdrop-filter: blur(3px); }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.30em; color: #67e8f9; font-weight: bold; white-space: nowrap; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 8px; letter-spacing: 0.22em; color: #94a3b8; margin-top: 3px; white-space: nowrap; }
 
-        /* Latency Labels */
-        .latency-label { position: absolute; background: rgba(2, 6, 23, 0.9); border: 1px solid #06b6d4; color: #06b6d4; font-family: monospace; font-size: 11px; padding: 4px 8px; border-radius: 4px; opacity: 0; transition: opacity 0.3s; z-index: 15; font-weight: bold; text-align: center; transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(6, 182, 212, 0.3); }
-        .lat-total { font-size: 13px; border-color: #10b981; color: #10b981; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+        #latency-stack { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; }
+        .lat-chip { background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 8px 14px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; backdrop-filter: blur(4px); display: flex; justify-content: space-between; gap: 14px; min-width: 200px; transition: all 0.3s; }
+        .lat-chip strong { font-weight: bold; color: #06b6d4; }
+        .lat-chip.token { border-left: 3px solid #06b6d4; }
+        .lat-chip.leo { border-left: 3px solid #fbbf24; }
+        .lat-chip.live strong { color: #fbbf24; }
+        .lat-chip.fired { background: rgba(251,191,36,0.18); }
 
-        /* TPO Arbitration Engine */
-        #tpo-arbitration { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: #0f172a; border: 2px solid #06b6d4; color: #06b6d4; padding: 4px 12px; font-size: 10px; font-weight: bold; border-radius: 20px; letter-spacing: 1px; z-index: 20; transition: all 0.3s; }
-        .arb-override { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; box-shadow: 0 0 15px #ef4444; }
+        /* Scene-anchored callouts (track 3D points to screen pixels each frame) */
+        .scene-callout {
+            position: absolute;
+            background: rgba(0,0,0,0.78);
+            border: 1px solid #06b6d4;
+            border-radius: 4px;
+            padding: 7px 11px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #67e8f9;
+            letter-spacing: 0.15em;
+            z-index: 90;
+            pointer-events: none;
+            backdrop-filter: blur(2px);
+            white-space: nowrap;
+            text-align: center;
+            transition: opacity 0.3s;
+        }
+        .scene-callout.warning { border-color: #fbbf24; color: #fbbf24; }
+        .scene-callout.urgent { border-color: #ef4444; color: #fca5a5; }
+        .scene-callout strong { color: white; font-size: 11px; display: block; margin-bottom: 2px; letter-spacing: 0.08em; }
 
-        /* Tactical Controls */
-        #controls { height: 70px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 1000; }
-        .ctrl-btn { background: #0f172a; border: 1px solid #334155; color: #cbd5e1; padding: 10px 16px; font-size: 11px; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
-        .ctrl-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
-        .p3-btn { border-color: #facc15; color: #facc15; } .p3-btn:hover { background: rgba(250, 204, 21, 0.1); }
-        .p1-btn { border-color: #ef4444; color: #ef4444; } .p1-btn:hover { background: rgba(239, 68, 68, 0.1); }
-        
-        #status-bar { position: absolute; bottom: 85px; left: 30px; font-family: monospace; font-size: 13px; color: #94a3b8; background: rgba(0,0,0,0.8); padding: 10px 20px; border: 1px solid #334155; }
+        /* REVIVE short-code phone panel — bottom-left of scene */
+        #shortcode-panel {
+            position: absolute;
+            bottom: 90px; left: 20px;
+            background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+            border: 2px solid #4a5568;
+            border-radius: 22px;
+            padding: 14px 14px 18px;
+            width: 220px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+            z-index: 100;
+            font-family: 'Courier New', monospace;
+        }
+        #shortcode-panel.fired { border-color: #ef4444; box-shadow: 0 8px 24px rgba(239,68,68,0.5), inset 0 1px 0 rgba(255,255,255,0.08); }
+        .sc-screen {
+            background: #0a0f1a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px 12px 8px;
+            margin-bottom: 12px;
+            min-height: 56px;
+        }
+        .sc-screen-label { font-size: 9px; letter-spacing: 0.25em; color: #64748b; }
+        .sc-screen-content {
+            font-size: 18px; font-weight: bold; color: #22c55e;
+            font-family: 'Courier New', monospace;
+            min-height: 24px;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+        .sc-screen-content.alert { color: #ef4444; animation: scBlink 0.4s infinite alternate; }
+        @keyframes scBlink { from { opacity: 1; } to { opacity: 0.45; } }
+        .sc-keypad {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+        .sc-key {
+            background: #2d3748; border: 1px solid #4a5568;
+            border-radius: 6px;
+            padding: 8px 0;
+            font-size: 14px; font-weight: bold;
+            color: #e2e8f0;
+            text-align: center;
+            transition: all 0.15s;
+            position: relative;
+        }
+        .sc-key.pressed {
+            background: #06b6d4; border-color: #06b6d4; color: #0a0f1a;
+            box-shadow: 0 0 12px rgba(6,182,212,0.6);
+        }
+        .sc-key .letters { display: block; font-size: 7px; color: #a0aec0; letter-spacing: 0.15em; margin-top: 1px; font-weight: normal; }
+        .sc-key.pressed .letters { color: #0a0f1a; }
+        /* Hand cursor that floats over keys when entering */
+        #sc-hand {
+            position: absolute;
+            font-size: 28px;
+            pointer-events: none;
+            transition: top 0.18s ease, left 0.18s ease, opacity 0.2s;
+            opacity: 0;
+            z-index: 110;
+            filter: drop-shadow(0 2px 6px rgba(0,0,0,0.7));
+            transform: rotate(-15deg);
+        }
+        #sc-hand.visible { opacity: 1; }
+
+        #legend {
+            position: absolute; bottom: 90px; left: 260px;
+            background: rgba(0,0,0,0.78); border: 1px solid #06b6d4;
+            padding: 10px 14px; backdrop-filter: blur(4px); z-index: 100;
+            min-width: 290px;
+        }
+        .legend-title { font-family: 'Courier New', monospace; font-size: 10px; color: #06b6d4; letter-spacing: 0.25em; font-weight: bold; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #1e293b; }
+        .legend-row { display: flex; align-items: center; gap: 9px; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.1em; color: #cbd5e1; padding: 2px 0; }
+        .legend-swatch { width: 12px; height: 12px; flex-shrink: 0; }
+        .legend-swatch.diode { background: linear-gradient(90deg, transparent, #06b6d4); border: 1px solid #06b6d4; }
+
+        #proof-strip {
+            position: absolute; bottom: 90px; right: 20px;
+            background: rgba(0,0,0,0.78); border: 1px solid #22c55e;
+            padding: 9px 14px; font-family: 'Courier New', monospace; font-size: 10px;
+            color: #86efac; letter-spacing: 0.13em; backdrop-filter: blur(4px); z-index: 100;
+            max-width: 260px; text-align: right;
+        }
+        #proof-strip strong { color: white; font-size: 11px; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 1000; }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 4px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 11px 14px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.active { background: rgba(6,182,212,0.20); border-color: #06b6d4; color: #06b6d4; box-shadow: 0 0 12px rgba(6,182,212,0.4); }
+        .step-btn.token-btn { border-color: #06b6d4; color: #67e8f9; }
+        .step-btn.token-btn:hover { background: rgba(6,182,212,0.15); }
+        .step-btn.mission-btn { border-color: #fbbf24; color: #fbbf24; }
+        .step-btn.mission-btn:hover { background: rgba(251,191,36,0.15); }
+        .step-btn.lcr-btn { border-color: #ef4444; color: #fca5a5; box-shadow: 0 0 8px rgba(239,68,68,0.3); }
+        .step-btn.lcr-btn:hover { background: rgba(239,68,68,0.20); }
+        .step-btn.reset-btn { border-color: #94a3b8; color: #94a3b8; margin-left: auto; }
+        .step-btn.reset-btn:hover { background: rgba(148,163,184,0.15); }
+        .step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        @media (max-width: 1100px) { #legend { display: none; } }
+        @media (max-width: 900px) { .step-btn { padding: 10px 8px; font-size: 10px; } #latency-stack, #proof-strip, #shortcode-panel { display: none; } }
     </style>
 </head>
 <body>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
 
-    <div id="schematic-container">
-        <svg class="data-lines" id="flow-svg">
-            <path id="line-in" class="flow-path" d="M 0 0 L 0 0" />
-            <path id="line-out" class="flow-path" d="M 0 0 L 0 0" />
-            <path id="line-fbi" class="flow-path" d="M 0 0 L 0 0" />
-            <path id="line-cbp" class="flow-path" d="M 0 0 L 0 0" />
-            <path id="line-dea" class="flow-path" d="M 0 0 L 0 0" />
-            <path id="line-tribe" class="flow-path" d="M 0 0 L 0 0" />
-        </svg>
+        <div id="status-bar">SYS_STATUS: SOVEREIGN NODE READY — DRONE PARKED · DOORS CLOSED</div>
 
-        <div id="lat-edge" class="latency-label">26ms<br>Edge RF</div>
-        <div id="lat-sat" class="latency-label">26ms<br>LEO Backhaul</div>
-        <div id="lat-total" class="latency-label lat-total">MAX LATENCY: 52ms</div>
-
-        <div class="block" id="drone-asset">
-            <div class="block-title">Agnostic Asset</div>
-            <div class="block-value">Nightingale UAV</div>
-            <div style="font-size: 9px; color: #64748b; margin-top: 8px;">Payload: Narcan 4mg<br>Camera: EO/IR Active</div>
+        <div id="brand-mark">
+            <div class="brand-title">SOVEREIGN NODE · DRONE-IN-A-BOX</div>
+            <div class="brand-sub">JETSON ORIN COMPUTE · STARLINK EGRESS · ANONYMOUS BLADE ROUTING</div>
         </div>
 
-        <div class="block" id="base-station">
-            <div id="tpo-arbitration">TPO GATEKEEPER : STANDBY</div>
-            <div class="block-title" style="color: #06b6d4;">Sovereign Node Enclosure</div>
-            
-            <div class="diode">
-                UNIDIRECTIONAL DIODE <span>&#8594;</span> (HARDWARE AIR-GAP)
-            </div>
-
-            <div class="blade-rack">
-                <div class="blade" id="blade-fbi">
-                    <div class="b-title">BLADE A: FBI (P3)</div>
-                    <div class="b-os">OS: CJIS-Linux | Tun: WireGuard</div>
-                </div>
-                <div class="blade" id="blade-cbp">
-                    <div class="b-title">BLADE B: CBP (P3)</div>
-                    <div class="b-os">OS: DHS-Core | Tun: IPSec</div>
-                </div>
-                <div class="blade" id="blade-dea">
-                    <div class="b-title">BLADE C: DEA (P3)</div>
-                    <div class="b-os">OS: EPIC-Node | Tun: WireGuard</div>
-                </div>
-                <div class="blade" id="blade-tribe">
-                    <div class="b-title">BLADE D: Tribal PD (P1)</div>
-                    <div class="b-os">OS: Sovereign Registry OS</div>
-                </div>
-            </div>
+        <div id="latency-stack">
+            <div class="lat-chip token" id="chip-token">TOKEN ISSUE <strong id="lat-token">5ms</strong></div>
+            <div class="lat-chip leo" id="chip-leo">LEO ROUND-TRIP MAX <strong id="lat-leo">52ms</strong></div>
         </div>
 
-        <div class="block" id="satellite-uplink">
-            <div class="block-title">LEO Egress</div>
-            <div class="block-value">Starlink Terminal</div>
-            <div style="font-size: 9px; color: #64748b; margin-top: 8px;">Multiplexed Sockets<br>Zero Terrestrial Hops</div>
+        <div id="callout-enclosure" class="scene-callout" style="opacity:0">
+            <strong>SOVEREIGN NODE ENCLOSURE</strong>
+            DRONE PARKED · DOORS HINGED · CHARGING DECK
+        </div>
+        <div id="callout-jetsons" class="scene-callout" style="opacity:0">
+            <strong>4× JETSON ORIN BLADES</strong>
+            ANONYMOUS · COLD-HANDED · POWER-ONLY CHASSIS
+        </div>
+        <div id="callout-diode" class="scene-callout warning" style="opacity:0">
+            <strong>HARDWARE DIODE</strong>
+            UNIDIRECTIONAL · OPS → BLADE
+        </div>
+        <div id="callout-uplink" class="scene-callout" style="opacity:0">
+            <strong>STARLINK UPLINK</strong>
+            EACH BLADE HARDWIRED · NO CROSSOVER
         </div>
 
-        <div id="cloud-endpoints">
-            <div class="block" id="cloud-fbi">
-                <div class="block-title">Tenant A Cloud</div>
-                <div class="block-value" style="color: #facc15; font-size: 12px;">AWS GovCloud (FBI)</div>
+        <!-- REVIVE / 738483 short-code keypad -->
+        <div id="shortcode-panel">
+            <div class="sc-screen">
+                <div class="sc-screen-label">SHORT CODE</div>
+                <div class="sc-screen-content" id="sc-display">_</div>
             </div>
-            <div class="block" id="cloud-cbp">
-                <div class="block-title">Tenant B Cloud</div>
-                <div class="block-value" style="color: #facc15; font-size: 12px;">DHS Secure Cloud</div>
+            <div class="sc-keypad" id="sc-keypad">
+                <div class="sc-key" data-key="1">1<span class="letters">&nbsp;</span></div>
+                <div class="sc-key" data-key="2">2<span class="letters">ABC</span></div>
+                <div class="sc-key" data-key="3">3<span class="letters">DEF</span></div>
+                <div class="sc-key" data-key="4">4<span class="letters">GHI</span></div>
+                <div class="sc-key" data-key="5">5<span class="letters">JKL</span></div>
+                <div class="sc-key" data-key="6">6<span class="letters">MNO</span></div>
+                <div class="sc-key" data-key="7">7<span class="letters">PQRS</span></div>
+                <div class="sc-key" data-key="8">8<span class="letters">TUV</span></div>
+                <div class="sc-key" data-key="9">9<span class="letters">WXYZ</span></div>
+                <div class="sc-key" data-key="*">*<span class="letters">&nbsp;</span></div>
+                <div class="sc-key" data-key="0">0<span class="letters">&nbsp;</span></div>
+                <div class="sc-key" data-key="#">#<span class="letters">&nbsp;</span></div>
             </div>
-            <div class="block" id="cloud-dea">
-                <div class="block-title">Tenant C Cloud</div>
-                <div class="block-value" style="color: #facc15; font-size: 12px;">EPIC Database (DEA)</div>
-            </div>
-            <div class="block" id="cloud-tribe">
-                <div class="block-title">Tenant D Cloud</div>
-                <div class="block-value" style="color: #ef4444; font-size: 12px;">Sovereign (Tribe)</div>
-            </div>
+            <div id="sc-hand">👆</div>
+        </div>
+
+        <div id="legend">
+            <div class="legend-title">LEGEND</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#06b6d4; border-radius:50%"></div>OPS DATA · TOKEN / LEO COMMAND</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#fbbf24; border-radius:50%"></div>SURVEILLANCE VIDEO · TAGGED</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#ef4444; border-radius:50%"></div>NARCAN MISSION · TRIBAL TAG</div>
+            <div class="legend-row"><div class="legend-swatch diode"></div>HARDWARE DIODE · ONE-WAY</div>
+        </div>
+
+        <div id="proof-strip">
+            <strong>FIELD-PROVEN PLATFORM</strong><br>
+            DRONE-IN-A-BOX · NYC PD<br>
+            FAA WAIVERED · OPERATED IN 35 MPH WINDS
         </div>
     </div>
-
-    <div id="status-bar">SYS_STATUS: NODE DORMANT. AWAITING LESSEE COMMAND.</div>
 
     <div id="controls">
-        <button class="ctrl-btn p3-btn" onclick="startMission('fbi')">Execute FBI (P3)</button>
-        <button class="ctrl-btn p3-btn" onclick="startMission('cbp')">Execute CBP (P3)</button>
-        <button class="ctrl-btn p3-btn" onclick="startMission('dea')">Execute DEA (P3)</button>
-        <button class="ctrl-btn p1-btn" onclick="triggerOverride()">LCR OVERRIDE (P1 Tribe)</button>
-        <button class="ctrl-btn" onclick="resetSchematic()">Reset Node</button>
+        <span class="ctrl-label">SEQUENCE</span>
+        <button class="step-btn token-btn" id="btn-token">▶ 1. ISSUE PECK TOKEN (5ms)</button>
+        <button class="step-btn mission-btn" id="btn-mission" disabled>▶ 2. RUN MISSION (BLADE-B)</button>
+        <button class="step-btn lcr-btn" id="btn-lcr">🚨 LCR — DIAL "REVIVE"</button>
+        <button class="step-btn reset-btn" id="btn-reset">Reset</button>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const ui = {
-            drone: document.getElementById('drone-asset'),
-            blades: {
-                fbi: document.getElementById('blade-fbi'),
-                cbp: document.getElementById('blade-cbp'),
-                dea: document.getElementById('blade-dea'),
-                tribe: document.getElementById('blade-tribe')
-            },
-            clouds: {
-                fbi: document.getElementById('cloud-fbi'),
-                cbp: document.getElementById('cloud-cbp'),
-                dea: document.getElementById('cloud-dea'),
-                tribe: document.getElementById('cloud-tribe')
-            },
-            gatekeeper: document.getElementById('tpo-arbitration'),
-            status: document.getElementById('status-bar'),
-            lines: {
-                in: document.getElementById('line-in'),
-                out: document.getElementById('line-out'),
-                fbi: document.getElementById('line-fbi'),
-                cbp: document.getElementById('line-cbp'),
-                dea: document.getElementById('line-dea'),
-                tribe: document.getElementById('line-tribe')
-            },
-            labels: {
-                edge: document.getElementById('lat-edge'),
-                sat: document.getElementById('lat-sat'),
-                total: document.getElementById('lat-total')
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        host.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x020617, 0.0070);
+
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x020617)}, midColor: {value: new THREE.Color(0x0a1530)}, horizonColor: {value: new THREE.Color(0x153060)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.4, h)); col = mix(col, topColor, smoothstep(0.3, 1.0, h)); }
+                    else { col = horizonColor; }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(800, 24, 12), skyMat));
+
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(400 * 3);
+        for (let i = 0; i < 400; i++) {
+            const r = 600, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.7 + 0.1);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xc8d4f0, size: 0.7, sizeAttenuation: false, transparent: true, opacity: 0.4 }));
+        scene.add(stars);
+
+        scene.add(new THREE.HemisphereLight(0x1d4870, 0x020617, 0.50));
+        scene.add(new THREE.AmbientLight(0xc8d4f0, 0.30));
+        const keyLight = new THREE.DirectionalLight(0xffffff, 0.55); keyLight.position.set(20, 30, 20); scene.add(keyLight);
+        const fillLight = new THREE.DirectionalLight(0x06b6d4, 0.20); fillLight.position.set(-15, 12, 8); scene.add(fillLight);
+
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x0a1426, roughness: 0.95 }));
+        ground.rotation.x = -Math.PI / 2; ground.position.y = -3.5; scene.add(ground);
+        const grid = new THREE.GridHelper(120, 30, 0x06b6d4, 0x1e293b);
+        grid.position.y = -3.45; grid.material.transparent = true; grid.material.opacity = 0.22; scene.add(grid);
+
+        // Camera — angled, tightened for mobile/tablet aspect
+        const camera = new THREE.PerspectiveCamera(46, width/height, 0.1, 500);
+        camera.position.set(13, 11, 21); camera.lookAt(3, 2, 0);
+
+        function disposeMesh(m) { if (m.geometry) m.geometry.dispose(); if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); } }
+        function disposeGroup(g) { g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); }); if (g.parent) g.parent.remove(g); }
+
+        // Texture helpers
+        function makeTextLabel(text, color, bg, w, h) {
+            w = w || 256; h = h || 64;
+            const c = document.createElement('canvas'); c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = bg || 'rgba(15,23,42,0.92)'; ctx.fillRect(0, 0, w, h);
+            ctx.strokeStyle = color || '#06b6d4'; ctx.lineWidth = 3; ctx.strokeRect(2, 2, w-4, h-4);
+            ctx.fillStyle = color || '#67e8f9'; ctx.font = `bold ${Math.floor(h*0.4)}px monospace`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, w/2, h/2);
+            const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+            return tex;
+        }
+        function makeJetsonLabel(name) {
+            const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#0a0f1a'; ctx.fillRect(0, 0, 256, 96);
+            ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2; ctx.strokeRect(1, 1, 254, 94);
+            ctx.fillStyle = '#76b900'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left';
+            ctx.fillText('NVIDIA® JETSON ORIN', 12, 24);
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 32px monospace';
+            ctx.fillText(name, 12, 62);
+            ctx.fillStyle = '#64748b'; ctx.font = '11px monospace';
+            ctx.fillText('TENANT — UNDISCLOSED', 12, 82);
+            const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+            return tex;
+        }
+        function makeCloudLabel(text, sub, color) {
+            const c = document.createElement('canvas'); c.width = 256; c.height = 80;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = 'rgba(15,23,42,0.92)'; ctx.fillRect(0, 0, 256, 80);
+            ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.strokeRect(2, 2, 252, 76);
+            ctx.fillStyle = color; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 32);
+            ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace';
+            ctx.fillText(sub, 128, 58);
+            const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+            return tex;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // ENCLOSURE — Nightingale-style toolbox, white/grey, doors hinge L+R
+        // X axis: enclosure extends left-right, drone parks at x=-3, jetsons at x=+3
+        // Internally divided by a panel at x=0 (the diode wall)
+        // ═══════════════════════════════════════════════════════════════
+        const ENCLOSURE_BOTTOM = -2.5;  // floor of enclosure (well above ground for elevation)
+        const ENCLOSURE_TOP = 1.6;      // top edge of side walls
+        const DECK_Y = -1.2;            // charging deck height (drone rests here)
+        const ENCL_LENGTH = 12;          // X span of the enclosure body (was 14)
+        const ENCL_DEPTH = 5;            // Z span (was 6)
+        const ENCL_X_CENTER = 0;
+
+        function buildEnclosure() {
+            const g = new THREE.Group();
+            const matWhite = new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.5, metalness: 0.15 });
+            const matWhiteInner = new THREE.MeshStandardMaterial({ color: 0xc7cbd1, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+            const matDark = new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.7, metalness: 0.4 });
+            const matDeck = new THREE.MeshStandardMaterial({ color: 0x4a5160, roughness: 0.65, metalness: 0.5 });
+
+            // FLOOR (single piece, full length)
+            const floor = new THREE.Mesh(new THREE.BoxGeometry(ENCL_LENGTH, 0.4, ENCL_DEPTH), matWhite);
+            floor.position.set(ENCL_X_CENTER, ENCLOSURE_BOTTOM, 0); g.add(floor);
+
+            // FRONT WALL (low — doesn't block drone view, allows cutaway feel)
+            const frontWall = new THREE.Mesh(new THREE.BoxGeometry(ENCL_LENGTH, 0.5, 0.3), matWhite);
+            frontWall.position.set(ENCL_X_CENTER, ENCLOSURE_BOTTOM + 0.45, ENCL_DEPTH/2); g.add(frontWall);
+            // BACK WALL (taller, structural)
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(ENCL_LENGTH, 4.2, 0.3), matWhite);
+            backWall.position.set(ENCL_X_CENTER, ENCLOSURE_BOTTOM + 2.1, -ENCL_DEPTH/2); g.add(backWall);
+
+            // END WALLS (left + right)
+            const endL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4.2, ENCL_DEPTH), matWhite);
+            endL.position.set(-ENCL_LENGTH/2, ENCLOSURE_BOTTOM + 2.1, 0); g.add(endL);
+            const endR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 4.2, ENCL_DEPTH), matWhite);
+            endR.position.set(ENCL_LENGTH/2, ENCLOSURE_BOTTOM + 2.1, 0); g.add(endR);
+
+            // CENTER DIVIDER (separates ops side from blade side)
+            const divider = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4.0, ENCL_DEPTH - 0.4), matDark);
+            divider.position.set(0, ENCLOSURE_BOTTOM + 2.0, 0); g.add(divider);
+            // Cyan accent strip along the top of divider (light pipe look)
+            const dividerStrip = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.10, ENCL_DEPTH - 0.4), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            dividerStrip.position.set(0, ENCLOSURE_BOTTOM + 4.05, 0); g.add(dividerStrip);
+
+            // CHARGING DECK (left side — where drone sits) — slightly raised platform
+            const deck = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.25, 3.6), matDeck);
+            deck.position.set(-3.0, DECK_Y, 0); g.add(deck);
+            // Deck cyan-rim accent
+            const deckRim = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.08, 0.06), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            deckRim.position.set(-3.0, DECK_Y + 0.18, 1.8); g.add(deckRim);
+            // Charging contacts — 4 small cyan-glowing pads on the deck surface
+            const chargingPads = [];
+            for (const x of [-4.0, -2.0]) for (const z of [-1.2, 1.2]) {
+                const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.06, 16), new THREE.MeshStandardMaterial({ color: 0x06b6d4, emissive: 0x06b6d4, emissiveIntensity: 0.6 }));
+                pad.position.set(x, DECK_Y + 0.16, z); g.add(pad); chargingPads.push(pad);
             }
+            g.userData.chargingPads = chargingPads;
+
+            // BLADE-SIDE FLOOR DETAIL (right side — where Jetsons sit) — flat black mat
+            const bladeFloor = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.10, 3.6), matDark);
+            bladeFloor.position.set(3.0, ENCLOSURE_BOTTOM + 0.25, 0); g.add(bladeFloor);
+
+            // DOORS — two FLAT sliding panels on top of the enclosure
+            // Closed: each panel covers half the deck, meeting at center (x=0)
+            // Open: left panel slides further left, right panel slides further right (along X)
+            // The Y position is fixed (sits flat on top of the chassis lid)
+            const DOOR_Y = ENCLOSURE_TOP + 0.6;       // flat on top of chassis
+            const DOOR_W = ENCL_LENGTH/2;              // each door covers half the lid
+            const doorMatOuter = new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.45, metalness: 0.20 });
+
+            const doorL = new THREE.Group();
+            const doorLPanel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W, 0.18, ENCL_DEPTH), doorMatOuter);
+            doorL.add(doorLPanel);
+            // Cyan accent strip on the inboard edge (where the seam is)
+            const doorLStrip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.20, ENCL_DEPTH), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            doorLStrip.position.set(DOOR_W/2 - 0.03, 0, 0);
+            doorL.add(doorLStrip);
+            // Slot rail visualization (small dark grooves on top edge of side wall — where door slides)
+            // Closed position: panel center at x = -DOOR_W/2 (covers left half of lid)
+            doorL.position.set(-DOOR_W/2, DOOR_Y, 0);
+            scene.add(doorL);
+
+            const doorR = new THREE.Group();
+            const doorRPanel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_W, 0.18, ENCL_DEPTH), doorMatOuter);
+            doorR.add(doorRPanel);
+            const doorRStrip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.20, ENCL_DEPTH), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            doorRStrip.position.set(-DOOR_W/2 + 0.03, 0, 0);
+            doorR.add(doorRStrip);
+            // Closed position: panel center at x = +DOOR_W/2 (covers right half of lid)
+            doorR.position.set(DOOR_W/2, DOOR_Y, 0);
+            scene.add(doorR);
+
+            // Save closed/open positions for animation
+            doorL.userData.closedX = -DOOR_W/2;
+            doorL.userData.openX   = -ENCL_LENGTH/2 - DOOR_W/2 + 0.4;  // slides past the left edge
+            doorR.userData.closedX = DOOR_W/2;
+            doorR.userData.openX   = ENCL_LENGTH/2 + DOOR_W/2 - 0.4;   // slides past the right edge
+
+            // Brand label on front wall
+            const brandTex = makeTextLabel('REVIVE DRONES · SOVEREIGN NODE', '#06b6d4', 'rgba(229,231,235,1.0)', 512, 32);
+            const brand = new THREE.Mesh(new THREE.PlaneGeometry(7, 0.45), new THREE.MeshBasicMaterial({ map: brandTex, side: THREE.DoubleSide, transparent: false }));
+            brand.position.set(ENCL_X_CENTER, ENCLOSURE_BOTTOM + 0.45, ENCL_DEPTH/2 + 0.16);
+            scene.add(brand);
+
+            // Mounting feet
+            for (const x of [-ENCL_LENGTH/2 + 0.6, ENCL_LENGTH/2 - 0.6]) for (const z of [-ENCL_DEPTH/2 + 0.5, ENCL_DEPTH/2 - 0.5]) {
+                const foot = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.7), matDark);
+                foot.position.set(x, ENCLOSURE_BOTTOM - 0.4, z); g.add(foot);
+            }
+
+            scene.add(g);
+            return { group: g, doorL, doorR };
+        }
+        const enclosure = buildEnclosure();
+
+        // ═══════════════════════════════════════════════════════════════
+        // OPS-SIDE COMPONENTS — flight controller box + LEO mesh interface
+        // Located on left side of enclosure interior (the deck area)
+        // Sized small so they don't compete with the drone visually
+        // ═══════════════════════════════════════════════════════════════
+        function buildOpsHardware() {
+            const g = new THREE.Group();
+            const matCard = new THREE.MeshStandardMaterial({ color: 0x0a1426, roughness: 0.5, metalness: 0.4 });
+            // Flight Controller — small box on back wall of deck
+            const fc = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.6, 0.7), matCard);
+            fc.position.set(-3.0, DECK_Y + 0.45, -1.9); g.add(fc);
+            // Cyan strip
+            const stripFc = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 0.04), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            stripFc.position.set(-3.0, DECK_Y + 0.65, -1.55); g.add(stripFc);
+            // 4 LEDs
+            const fcLeds = [];
+            for (let i = 0; i < 4; i++) {
+                const led = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: 0x67e8f9 }));
+                led.position.set(-3.5 + i * 0.32, DECK_Y + 0.50, -1.55); g.add(led);
+                fcLeds.push(led);
+            }
+            g.userData.fcLeds = fcLeds;
+
+            // FC label (small floating plate)
+            const fcLabelTex = makeTextLabel('FLIGHT CONTROLLER', '#67e8f9', 'rgba(15,23,42,0.92)', 256, 36);
+            const fcLabel = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.22), new THREE.MeshBasicMaterial({ map: fcLabelTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+            fcLabel.position.set(-3.0, DECK_Y + 1.00, -1.55);
+            g.add(fcLabel);
+
+            // LEO Mesh Interface — even smaller, sits beside FC
+            const leo = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.5, 0.6), matCard);
+            leo.position.set(-1.4, DECK_Y + 0.40, -1.9); g.add(leo);
+            const stripLeo = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.04), new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
+            stripLeo.position.set(-1.4, DECK_Y + 0.55, -1.61); g.add(stripLeo);
+            // LEO antenna stub
+            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8), matCard);
+            ant.position.set(-1.0, DECK_Y + 1.05, -1.9); g.add(ant);
+            const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.10, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
+            antTip.position.set(-1.0, DECK_Y + 1.65, -1.9); g.add(antTip);
+            g.userData.leoTip = antTip;
+            // LEO label
+            const leoLabelTex = makeTextLabel('LEO MESH IF', '#fbbf24', 'rgba(15,23,42,0.92)', 256, 36);
+            const leoLabel = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.18), new THREE.MeshBasicMaterial({ map: leoLabelTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+            leoLabel.position.set(-1.4, DECK_Y + 0.95, -1.61);
+            g.add(leoLabel);
+
+            scene.add(g);
+            return g;
+        }
+        const opsHw = buildOpsHardware();
+
+        // ═══════════════════════════════════════════════════════════════
+        // HARDWARE DIODE — short tube embedded in the center divider
+        // Visible from the outside (at the divider's height)
+        // ═══════════════════════════════════════════════════════════════
+        function buildDiode() {
+            const g = new THREE.Group();
+            const tube = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.30, 0.30, 1.2, 24, 1, true),
+                new THREE.MeshPhysicalMaterial({ color: 0x88aabb, roughness: 0.15, metalness: 0.0, transparent: true, opacity: 0.30, side: THREE.DoubleSide })
+            );
+            tube.rotation.z = Math.PI/2;
+            tube.position.set(0, DECK_Y + 0.7, 1.2);
+            g.add(tube);
+            const capMat = new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.4, metalness: 0.5, emissive: 0x06b6d4, emissiveIntensity: 0.4 });
+            const capL = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.12, 16), capMat);
+            capL.rotation.z = Math.PI/2; capL.position.set(-0.55, DECK_Y + 0.7, 1.2); g.add(capL);
+            const capR = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.12, 16), capMat);
+            capR.rotation.z = Math.PI/2; capR.position.set(0.55, DECK_Y + 0.7, 1.2); g.add(capR);
+            // Internal valve cone (one-way)
+            const valve = new THREE.Mesh(
+                new THREE.ConeGeometry(0.20, 0.36, 12),
+                new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xfbbf24, emissiveIntensity: 0.7 })
+            );
+            valve.rotation.z = -Math.PI/2;
+            valve.position.set(0, DECK_Y + 0.7, 1.2);
+            g.add(valve);
+            // Floating "ONE WAY" plate above
+            const arrowTex = makeTextLabel('→ ONE WAY →', '#fbbf24', 'rgba(15,23,42,0.92)', 256, 36);
+            const arrow = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.22), new THREE.MeshBasicMaterial({ map: arrowTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+            arrow.position.set(0, DECK_Y + 1.45, 1.2);
+            g.add(arrow);
+            scene.add(g);
+            g.userData.valve = valve;
+            return g;
+        }
+        const diodeGroup = buildDiode();
+
+        // ═══════════════════════════════════════════════════════════════
+        // 4× JETSON ORIN BLADES — palm-sized, in a row inside enclosure right side
+        // Each ~0.9 wide × 0.30 tall × 0.7 deep. Distinct bezel colors.
+        // Hardwired cable from each goes to the Starlink uplink terminal.
+        // ═══════════════════════════════════════════════════════════════
+        const BLADE_KEYS = ['A', 'B', 'C', 'D'];
+        const BLADES = {
+            A: { codename: 'BLADE-A', color: 0x9333ea, emissive: 0xc084fc, cloudLabel: 'BLADE-A CLOUD',  cloudColor: '#c084fc' },
+            B: { codename: 'BLADE-B', color: 0xfbbf24, emissive: 0xfde68a, cloudLabel: 'BLADE-B CLOUD',  cloudColor: '#fde68a' },
+            C: { codename: 'BLADE-C', color: 0x10b981, emissive: 0x6ee7b7, cloudLabel: 'BLADE-C CLOUD',  cloudColor: '#6ee7b7' },
+            D: { codename: 'BLADE-D', color: 0xef4444, emissive: 0xfca5a5, cloudLabel: 'BLADE-D CLOUD',  cloudColor: '#fca5a5' },
         };
+        const bladeMeshes = {};
+        const bladeLEDs = {};
+        const bladePositions = {};
 
-        let activeP3 = null;
-        let sequenceTimer = null;
-
-        function resetLines() {
-            Object.values(ui.lines).forEach(l => {
-                l.classList.remove('flow-active-p3', 'flow-active-p1', 'flow-request');
-            });
-            Object.values(ui.labels).forEach(lbl => lbl.style.opacity = '0');
-            clearTimeout(sequenceTimer);
-        }
-
-        function resetSchematic() {
-            resetLines();
-            activeP3 = null;
-            ui.drone.className = 'block';
-            
-            Object.values(ui.blades).forEach(b => b.className = 'blade');
-            Object.values(ui.clouds).forEach(c => c.className = 'block');
-            
-            ui.gatekeeper.className = '';
-            ui.gatekeeper.innerText = "TPO GATEKEEPER : STANDBY";
-            
-            ui.status.innerText = "SYS_STATUS: NODE DORMANT. AWAITING LESSEE COMMAND.";
-            ui.status.style.color = "#94a3b8";
-        }
-
-        function startMission(agency) {
-            resetSchematic();
-            activeP3 = agency;
-            const agencyNames = { fbi: "FBI", cbp: "CBP", dea: "DEA" };
-            
-            // Step 1: Drone Token Request (26ms)
-            ui.status.innerText = `SYS_STATUS: ${agencyNames[agency]} ASSET INITIATING TOKEN REQUEST...`;
-            ui.status.style.color = "#06b6d4";
-            ui.gatekeeper.innerText = "TPO GATEKEEPER : AUTHENTICATING";
-            
-            ui.lines.in.classList.add('flow-request');
-            ui.labels.edge.style.opacity = '1';
-
-            sequenceTimer = setTimeout(() => {
-                // Step 2: LEO Sync & Base Command (26ms)
-                ui.status.innerText = `SYS_STATUS: VERIFYING REGISTRY VIA LEO BACKHAUL...`;
-                ui.lines.out.classList.add('flow-request');
-                ui.labels.sat.style.opacity = '1';
-
-                setTimeout(() => {
-                    // Step 3: Mission Executed (52ms Math Locked)
-                    ui.labels.total.style.opacity = '1';
-                    ui.status.innerText = `SYS_STATUS: 52ms LATENCY VERIFIED. P3 AUTHORIZED. VIDEO STREAMING TO ${agencyNames[agency]} BLADE.`;
-                    ui.status.style.color = "#facc15";
-                    ui.gatekeeper.innerText = "TPO GATEKEEPER : P3 ACTIVE";
-
-                    ui.drone.classList.add('active-p3');
-                    ui.blades[agency].classList.add('active-p3');
-                    ui.clouds[agency].classList.add('active-p3');
-                    
-                    ui.lines.in.classList.replace('flow-request', 'flow-active-p3');
-                    ui.lines.out.classList.replace('flow-request', 'flow-active-p3');
-                    ui.lines[agency].classList.add('flow-active-p3');
-                }, 1000);
-            }, 1000);
-        }
-
-        function triggerOverride() {
-            if (activeP3) {
-                ui.blades[activeP3].classList.remove('active-p3');
-                ui.clouds[activeP3].classList.remove('active-p3');
-                ui.blades[activeP3].classList.add('locked');
-                ui.clouds[activeP3].classList.add('locked');
+        function buildJetson(key, idx) {
+            const spec = BLADES[key];
+            const g = new THREE.Group();
+            const matBody = new THREE.MeshStandardMaterial({ color: 0x0d1117, roughness: 0.35, metalness: 0.55 });
+            // Main body (palm-sized box)
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.30, 0.7), matBody);
+            body.position.y = 0.15; g.add(body);
+            // Heat sink fins on top
+            for (let i = 0; i < 7; i++) {
+                const fin = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.10, 0.04), new THREE.MeshStandardMaterial({ color: 0x1a1f2e, metalness: 0.7, roughness: 0.3 }));
+                fin.position.set(0, 0.36, -0.27 + i * 0.09); g.add(fin);
             }
-            
-            resetLines();
+            // Bezel (colored plate on front face)
+            const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 0.04), new THREE.MeshStandardMaterial({ color: spec.color, emissive: spec.color, emissiveIntensity: 0.5 }));
+            bezel.position.set(0, 0.24, 0.36); g.add(bezel);
+            // 3 status LEDs on front face
+            const leds = [];
+            for (let i = 0; i < 3; i++) {
+                const led = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), new THREE.MeshBasicMaterial({ color: 0x1e293b }));
+                led.position.set(-0.20 + i * 0.20, 0.13, 0.36); g.add(led);
+                leds.push(led);
+            }
+            // Codename label on top (faces camera)
+            const labelTex = makeJetsonLabel(spec.codename);
+            const label = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.32), new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+            label.position.set(0, 0.42, 0); label.rotation.x = -Math.PI / 2.3;
+            g.add(label);
+            // Position in row inside the enclosure right side (tightened)
+            const xPos = 1.2 + idx * 0.95;
+            const yPos = ENCLOSURE_BOTTOM + 0.3;
+            const zPos = -0.8;
+            g.position.set(xPos, yPos, zPos);
+            scene.add(g);
+            bladeMeshes[key] = g;
+            bladeLEDs[key] = leds;
+            bladePositions[key] = new THREE.Vector3(xPos, yPos + 0.15, zPos);
+            return g;
+        }
+        BLADE_KEYS.forEach((k, i) => buildJetson(k, i));
 
-            // Step 1: Immediate Override Execution (26ms)
-            ui.status.innerText = "SYS_STATUS: P1 LCR TRIGGERED. INITIATING 26ms KINETIC OVERRIDE...";
-            ui.status.style.color = "#06b6d4";
-            
-            ui.gatekeeper.classList.add('arb-override');
-            ui.gatekeeper.innerText = "TPO ARBITRATION: P1 LCR PREEMPTION";
+        // ═══════════════════════════════════════════════════════════════
+        // STARLINK UPLINK TERMINAL — sits on right end of enclosure
+        // Dish on a pole with a beam going up to a small satellite icon
+        // 4 hardwired cables run from each Jetson to this terminal
+        // ═══════════════════════════════════════════════════════════════
+        const STARLINK_POS = new THREE.Vector3(5.6, ENCLOSURE_BOTTOM + 1.2, -1.0);
+        function buildStarlinkTerminal() {
+            const g = new THREE.Group();
+            const matPole = new THREE.MeshStandardMaterial({ color: 0x4a5160, metalness: 0.6, roughness: 0.3 });
+            const matDish = new THREE.MeshStandardMaterial({ color: 0xe5e7eb, metalness: 0.3, roughness: 0.5 });
+            // Mounting box on the floor
+            const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.30, 0.7), new THREE.MeshStandardMaterial({ color: 0x2a3340, metalness: 0.5 }));
+            base.position.set(0, 0, 0); g.add(base);
+            // Pole
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 1.5, 8), matPole);
+            pole.position.set(0, 0.85, 0); g.add(pole);
+            // Dish (rectangular, tilted up)
+            const dish = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 0.65), matDish);
+            dish.position.set(0, 1.65, 0);
+            dish.rotation.x = -Math.PI / 6;  // tilted up toward sky
+            g.add(dish);
+            // Cyan rim accent
+            const rim = new THREE.Mesh(new THREE.BoxGeometry(0.84, 0.04, 0.06), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            rim.position.set(0, 1.65, 0.32);
+            rim.rotation.x = -Math.PI / 6;
+            g.add(rim);
+            // Status light on base
+            const statusLed = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            statusLed.position.set(0.32, 0.19, 0.32); g.add(statusLed);
+            g.userData.statusLed = statusLed;
 
-            ui.lines.in.classList.add('flow-active-p1');
-            ui.labels.edge.style.opacity = '1';
+            // Label
+            const labelTex = makeTextLabel('STARLINK UPLINK', '#06b6d4', 'rgba(15,23,42,0.92)', 256, 40);
+            const label = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.24), new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+            label.position.set(0, 2.4, 0); g.add(label);
 
-            sequenceTimer = setTimeout(() => {
-                // Step 2: LEO Sync (26ms)
-                ui.status.innerText = "SYS_STATUS: P3 TOKEN REVOKED. SYNCING P1 STATE TO MESH...";
-                ui.lines.out.classList.add('flow-active-p1');
-                ui.labels.sat.style.opacity = '1';
+            g.position.copy(STARLINK_POS);
+            scene.add(g);
+            return g;
+        }
+        const starlinkTerminal = buildStarlinkTerminal();
+        const STARLINK_DISH_POS = STARLINK_POS.clone().add(new THREE.Vector3(0, 1.65, 0));
 
-                setTimeout(() => {
-                    // Step 3: Full Reroute
-                    ui.labels.total.style.opacity = '1';
-                    ui.status.innerText = "SYS_STATUS: 52ms OVERRIDE SECURED. ASSET REROUTED FOR MEDICAL DROP.";
-                    ui.status.style.color = "#ef4444";
+        // ─── HARDWIRED CABLES from each Jetson to Starlink uplink ───
+        // Each cable visible as a curved line in the blade's color (so you can see
+        // 4 distinct wires, one per tenant, no crossover)
+        function buildBladeCables() {
+            const cables = {};
+            BLADE_KEYS.forEach(k => {
+                const spec = BLADES[k];
+                const start = bladePositions[k].clone();
+                const end = STARLINK_POS.clone().add(new THREE.Vector3(0, 0.3, 0));
+                // Build curved cable using a tube along a quadratic Bezier
+                const mid = start.clone().lerp(end, 0.5).add(new THREE.Vector3(0, -0.4, 0.1));
+                const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
+                const tubeGeo = new THREE.TubeGeometry(curve, 24, 0.035, 8, false);
+                const tubeMat = new THREE.MeshStandardMaterial({ color: spec.color, emissive: spec.color, emissiveIntensity: 0.25, roughness: 0.4 });
+                const tube = new THREE.Mesh(tubeGeo, tubeMat);
+                scene.add(tube);
+                cables[k] = { mesh: tube, mat: tubeMat, color: spec.color, curve };
+            });
+            return cables;
+        }
+        const bladeCables = buildBladeCables();
 
-                    ui.drone.classList.remove('active-p3');
-                    ui.drone.classList.add('active-p1');
-                    ui.blades.tribe.classList.add('active-p1');
-                    ui.clouds.tribe.classList.add('active-p1');
-                    
-                    ui.lines.tribe.classList.add('flow-active-p1');
-                }, 1000);
-            }, 1000);
+        // ═══════════════════════════════════════════════════════════════
+        // SATELLITE ICON — small symbolic LEO satellite high in the sky
+        // Used as the relay point for Starlink uplink → cloud beam
+        // ═══════════════════════════════════════════════════════════════
+        const SATELLITE_POS = new THREE.Vector3(9.5, 9, -2);
+        function buildSatellite() {
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.7), new THREE.MeshStandardMaterial({ color: 0xc8d4f0, metalness: 0.6, roughness: 0.3, emissive: 0x06b6d4, emissiveIntensity: 0.2 }));
+            g.add(body);
+            // Solar panels
+            const panelMat = new THREE.MeshStandardMaterial({ color: 0x1d4870, roughness: 0.3, metalness: 0.5, emissive: 0x06b6d4, emissiveIntensity: 0.3, side: THREE.DoubleSide });
+            const panelL = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.5), panelMat);
+            panelL.position.set(-1.2, 0, 0); panelL.rotation.y = Math.PI/2; g.add(panelL);
+            const panelR = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.5), panelMat);
+            panelR.position.set(1.2, 0, 0); panelR.rotation.y = Math.PI/2; g.add(panelR);
+            // Strobe
+            const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            strobe.position.y = 0.3; g.add(strobe);
+            g.userData.strobe = strobe;
+            g.position.copy(SATELLITE_POS);
+            scene.add(g);
+            return g;
+        }
+        const satellite = buildSatellite();
+
+        // ═══════════════════════════════════════════════════════════════
+        // 4 CLOUDS — each labeled BLADE-X CLOUD, positioned in upper-right
+        // ═══════════════════════════════════════════════════════════════
+        const CLOUD_POSITIONS = {};
+        const cloudMeshes = {};
+        function buildCloudEndpoint(key, idx) {
+            const spec = BLADES[key];
+            const g = new THREE.Group();
+            const cloudMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, emissive: spec.color, emissiveIntensity: 0.0 });
+            g.userData.cloudMat = cloudMat;
+            const positions = [[0,0,0],[0.9,0.15,0],[-0.7,0.10,0.05],[0.4,-0.30,0],[-0.3,-0.20,0.10]];
+            const sizes = [0.55, 0.45, 0.50, 0.35, 0.40];
+            positions.forEach((p, i) => {
+                const blob = new THREE.Mesh(new THREE.SphereGeometry(sizes[i], 14, 10), cloudMat);
+                blob.position.set(p[0], p[1], p[2]); g.add(blob);
+            });
+            const labelTex = makeCloudLabel(spec.cloudLabel, 'TENANT EGRESS', spec.cloudColor);
+            const label = new THREE.Mesh(
+                new THREE.PlaneGeometry(2.6, 0.85),
+                new THREE.MeshBasicMaterial({
+                    map: labelTex,
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    depthTest: false,        // never occluded by cloud blob geometry
+                    depthWrite: false,
+                })
+            );
+            // Position label in front of cloud blobs (max blob extends to z=+0.15)
+            label.position.set(0, -1.05, 1.5);
+            label.renderOrder = 999;        // drawn after everything else
+            g.add(label);
+            // Position in upper right, spread vertically — tightened layout
+            const yPos = 8.5 - idx * 1.3;
+            const xPos = 13;
+            g.position.set(xPos, yPos, 0);
+            CLOUD_POSITIONS[key] = new THREE.Vector3(xPos, yPos, 0);
+            scene.add(g);
+            cloudMeshes[key] = g;
+            return g;
+        }
+        BLADE_KEYS.forEach((k, i) => buildCloudEndpoint(k, i));
+
+        // ═══════════════════════════════════════════════════════════════
+        // DRONE — Nightingale-style quadcopter
+        // Initially parked on the deck (feet on charging pads)
+        // ═══════════════════════════════════════════════════════════════
+        const DRONE_PARKED_POS = new THREE.Vector3(-3.0, DECK_Y + 0.55, 0);
+        function buildDrone() {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.4, metalness: 0.7, emissive: 0x4a8060, emissiveIntensity: 0.4 });
+            g.userData.bodyMat = bodyMat;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.32, 0.85), bodyMat);
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), new THREE.MeshBasicMaterial({ color: 0x80a890 }));
+            eye.position.y = -0.21; g.add(eye); g.userData.eye = eye;
+            const armR = 0.62;
+            const armPos = [[armR,0,armR],[-armR,0,armR],[armR,0,-armR],[-armR,0,-armR]];
+            const rotors = []; const halos = []; const feet = [];
+            armPos.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.14, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], 0.10, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.025, 0.07), new THREE.MeshBasicMaterial({ color: 0x000, transparent: true, opacity: 0.5 }));
+                rotor.position.set(p[0], 0.23, p[2]); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(0.40, 0.55, 14), new THREE.MeshBasicMaterial({ color: 0x4a8060, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0], 0.23, p[2]); halo.rotation.x = -Math.PI/2; g.add(halo); halos.push(halo);
+                // Landing feet — connect to charging pads
+                const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.40, 8), new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.5 }));
+                foot.position.set(p[0], -0.30, p[2]); g.add(foot); feet.push(foot);
+            });
+            g.userData.rotors = rotors; g.userData.halos = halos; g.userData.feet = feet;
+            // Surveillance pod
+            const survPod = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.22, 0.22), new THREE.MeshStandardMaterial({ color: 0x4a5568, roughness: 0.5, metalness: 0.4, emissive: 0x000000, emissiveIntensity: 0.0 }));
+            survPod.position.set(-0.25, -0.30, 0); g.add(survPod); g.userData.survPod = survPod;
+            // Narcan pod (always red)
+            const narcanPod = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.22, 0.22), new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.5, metalness: 0.3, emissive: 0xef4444, emissiveIntensity: 0.45 }));
+            narcanPod.position.set(0.25, -0.30, 0); g.add(narcanPod); g.userData.narcanPod = narcanPod;
+            // White cross on Narcan pod
+            const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.13, 0.025), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            crossV.position.set(0.25, -0.30, 0.115); g.add(crossV);
+            const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.04, 0.025), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+            crossH.position.set(0.25, -0.30, 0.115); g.add(crossH);
+            scene.add(g);
+            g.position.copy(DRONE_PARKED_POS);
+            return g;
+        }
+        const drone = buildDrone();
+
+        // ═══════════════════════════════════════════════════════════════
+        // PACKETS
+        // ═══════════════════════════════════════════════════════════════
+        const packets = [];
+        function spawnPacket(start, end, color, speed, onArrive, viaWaypoint) {
+            const m = new THREE.Mesh(
+                new THREE.SphereGeometry(0.13, 12, 10),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1.0 })
+            );
+            const halo = new THREE.Mesh(
+                new THREE.SphereGeometry(0.26, 14, 10),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            m.add(halo);
+            m.position.copy(start);
+            scene.add(m);
+            packets.push({ mesh: m, halo, start: start.clone(), end: end.clone(), waypoint: viaWaypoint ? viaWaypoint.clone() : null, t: 0, speed: speed || 1.0, onArrive });
         }
 
-        function resizeSVG() {
-            const getCenter = (el) => {
-                const rect = el.getBoundingClientRect();
-                const containerRect = document.getElementById('schematic-container').getBoundingClientRect();
-                return { x: rect.left - containerRect.left + rect.width / 2, y: rect.top - containerRect.top + rect.height / 2 };
+        // ═══════════════════════════════════════════════════════════════
+        // BEAMS (uplink/downlink visualizations) — rendered when active
+        // ═══════════════════════════════════════════════════════════════
+        const beams = []; // { line, mat, born, life }
+        function spawnBeam(a, b, color, life) {
+            const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+            const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 });
+            const line = new THREE.Line(geo, mat);
+            scene.add(line);
+            beams.push({ line, mat, born: clock.getElapsedTime(), life: life || 1.4 });
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // CALLOUT ANCHORS
+        // ═══════════════════════════════════════════════════════════════
+        const calloutAnchors = {
+            enclosure: new THREE.Vector3(-3.0, ENCLOSURE_BOTTOM + 4.5, 0),
+            jetsons:   new THREE.Vector3(3.0, ENCLOSURE_BOTTOM - 0.6, 1.2),
+            diode:     new THREE.Vector3(0, DECK_Y - 0.3, 1.2),
+            uplink:    new THREE.Vector3(5.6, ENCLOSURE_BOTTOM + 3.5, 0),
+        };
+        function projectToScreen(v3) {
+            const v = v3.clone().project(camera);
+            return { x: (v.x + 1) / 2 * width, y: (-v.y + 1) / 2 * height };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════════════
+        function freshState() {
+            return {
+                tokenIssued: false,
+                missionActive: false,
+                droneAirborne: false,
+                doorsOpen: 0,           // 0 = closed, 1 = fully open
+                doorsTarget: 0,
+                droneTargetPos: DRONE_PARKED_POS.clone(),
+                dronePhase: 'parked',   // parked | rising | flying-out | mission | flying-in | descending | docked
+                dronePhaseStart: 0,
+                rotorsActive: false,
+                downloadStarted: false,
+                videoTags: [],
+                lcrActive: false,
             };
+        }
+        let state_ = freshState();
 
-            const drone = getCenter(ui.drone);
-            const base = getCenter(document.getElementById('base-station'));
-            const sat = getCenter(document.getElementById('satellite-uplink'));
+        function setStatus(msg, color) {
+            const el = document.getElementById('status-bar');
+            el.textContent = msg;
+            el.style.color = color || '#06b6d4';
+            el.style.borderColor = (color || '#06b6d4') + '66';
+        }
+        function setLatencyChip(which, text, isLive, isFired) {
+            const chip = document.getElementById('chip-' + which);
+            const val = document.getElementById('lat-' + which);
+            val.textContent = text;
+            chip.classList.toggle('live', !!isLive);
+            chip.classList.toggle('fired', !!isFired);
+        }
+        function fadeCallout(id, on) {
+            const el = document.getElementById('callout-' + id);
+            if (!el) return;
+            el.style.opacity = on ? '1' : '0';
+        }
+        // Always show core callouts
+        ['enclosure','jetsons','diode','uplink'].forEach(c => fadeCallout(c, true));
 
-            // Lines
-            ui.lines.in.setAttribute('d', `M ${drone.x + 80} ${drone.y} L ${base.x - 180} ${base.y}`);
-            ui.lines.out.setAttribute('d', `M ${base.x + 180} ${base.y} L ${sat.x - 80} ${sat.y}`);
-            
-            const endpoints = ['fbi', 'cbp', 'dea', 'tribe'];
-            endpoints.forEach(agency => {
-                const cloud = getCenter(ui.clouds[agency]);
-                ui.lines[agency].setAttribute('d', `M ${sat.x + 80} ${sat.y} C ${sat.x + 130} ${sat.y}, ${cloud.x - 130} ${cloud.y}, ${cloud.x - 100} ${cloud.y}`);
+        // ═══════════════════════════════════════════════════════════════
+        // SHORT-CODE PANEL ANIMATION
+        // ═══════════════════════════════════════════════════════════════
+        const scDisplay = document.getElementById('sc-display');
+        const scKeypad = document.getElementById('sc-keypad');
+        const scHand = document.getElementById('sc-hand');
+        const scPanel = document.getElementById('shortcode-panel');
+
+        function pressKey(keyChar) {
+            return new Promise(resolve => {
+                const keyEl = scKeypad.querySelector(`[data-key="${keyChar}"]`);
+                if (!keyEl) { resolve(); return; }
+                // Position hand over the key
+                const r = keyEl.getBoundingClientRect();
+                const panelR = scPanel.getBoundingClientRect();
+                scHand.style.left = (r.left - panelR.left + r.width / 2 - 14) + 'px';
+                scHand.style.top = (r.top - panelR.top - 8) + 'px';
+                scHand.classList.add('visible');
+                setTimeout(() => {
+                    keyEl.classList.add('pressed');
+                    scDisplay.textContent = (scDisplay.textContent === '_' ? '' : scDisplay.textContent) + keyChar;
+                    setTimeout(() => { keyEl.classList.remove('pressed'); resolve(); }, 180);
+                }, 200);
+            });
+        }
+        async function dialReviveSequence() {
+            scDisplay.textContent = '_';
+            scDisplay.classList.remove('alert');
+            scPanel.classList.remove('fired');
+            scHand.classList.remove('visible');
+            await new Promise(r => setTimeout(r, 200));
+            // R E V I V E => 7 3 8 4 8 3
+            const digits = ['7','3','8','4','8','3'];
+            for (const d of digits) {
+                await pressKey(d);
+                await new Promise(r => setTimeout(r, 120));
+            }
+            scHand.classList.remove('visible');
+            // Resolve as REVIVE
+            await new Promise(r => setTimeout(r, 250));
+            scDisplay.textContent = 'REVIVE';
+            scDisplay.classList.add('alert');
+            scPanel.classList.add('fired');
+        }
+        function resetShortCode() {
+            scDisplay.textContent = '_';
+            scDisplay.classList.remove('alert');
+            scPanel.classList.remove('fired');
+            scHand.classList.remove('visible');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // SEQUENCES
+        // ═══════════════════════════════════════════════════════════════
+        function issueToken() {
+            if (state_.tokenIssued) return;
+            setStatus('SYS_STATUS: TPO ISSUING PECK TOKEN — 5ms TRANSACTION', '#06b6d4');
+            setLatencyChip('token', '5ms ⏵', true);
+            // Drone briefly flares green
+            drone.userData.bodyMat.emissive.setHex(0x10b981);
+            drone.userData.bodyMat.emissiveIntensity = 0.85;
+            // Token packet from LEO antenna up to drone
+            spawnPacket(
+                new THREE.Vector3(-1.0, DECK_Y + 1.65, -1.9),
+                drone.position.clone().add(new THREE.Vector3(0, 0.15, 0)),
+                0x06b6d4, 4.5,
+                () => {
+                    state_.tokenIssued = true;
+                    setStatus('SYS_STATUS: TOKEN AUTHORIZED — DRONE READY FOR DEPLOYMENT', '#22c55e');
+                    setLatencyChip('token', '5ms ✓', false, true);
+                    drone.userData.bodyMat.emissive.setHex(0x4a8060);
+                    drone.userData.bodyMat.emissiveIntensity = 0.4;
+                    document.getElementById('btn-mission').disabled = false;
+                    document.getElementById('btn-token').classList.add('active');
+                }
+            );
+        }
+
+        // Standard mission to BLADE-B
+        function runMission() {
+            if (!state_.tokenIssued || state_.missionActive) return;
+            state_.missionActive = true;
+            state_.activeBladeKey = 'B';
+            setStatus('SYS_STATUS: BLADE-B MISSION — DOORS OPENING — DRONE LAUNCHING', '#fbbf24');
+            // Surveillance pod color flips to BLADE-B color
+            drone.userData.survPod.material.color.setHex(BLADES.B.color);
+            drone.userData.survPod.material.emissive.setHex(BLADES.B.color);
+            drone.userData.survPod.material.emissiveIntensity = 0.55;
+            drone.userData.halos.forEach(h => { h.material.color.setHex(BLADES.B.color); });
+            // Begin deploy sequence
+            deployAndReturn(['surveillance:B'], () => {
+                document.getElementById('btn-mission').classList.add('active');
+            });
+        }
+
+        function triggerLCR() {
+            if (state_.lcrActive) return;
+            state_.lcrActive = true;
+            // Sequence: dial REVIVE → token issued → mission to BLADE-D (Tribal)
+            setStatus('🚨 SYS_STATUS: SHORT CODE INCOMING — OBSERVER DIALING…', '#ef4444');
+            dialReviveSequence().then(() => {
+                setTimeout(() => {
+                    setStatus('🚨 SYS_STATUS: REVIVE RECEIVED — TPO ISSUING P1 TOKEN — 5ms', '#ef4444');
+                    setLatencyChip('token', '5ms ⏵', true);
+                    drone.userData.bodyMat.emissive.setHex(0xef4444);
+                    drone.userData.bodyMat.emissiveIntensity = 0.95;
+                    // Token packet (red — P1 priority)
+                    spawnPacket(
+                        new THREE.Vector3(-1.0, DECK_Y + 1.65, -1.9),
+                        drone.position.clone().add(new THREE.Vector3(0, 0.15, 0)),
+                        0xef4444, 4.5,
+                        () => {
+                            state_.tokenIssued = true;
+                            setLatencyChip('token', '5ms ✓', false, true);
+                            // Drone gets red mission color
+                            drone.userData.survPod.material.color.setHex(BLADES.D.color);
+                            drone.userData.survPod.material.emissive.setHex(BLADES.D.color);
+                            drone.userData.survPod.material.emissiveIntensity = 0.55;
+                            drone.userData.halos.forEach(h => { h.material.color.setHex(0xef4444); });
+                            drone.userData.narcanPod.material.emissiveIntensity = 1.2;
+                            setStatus('🚨 SYS_STATUS: P1 NARCAN MISSION — DOORS OPENING — DRONE LAUNCHING', '#ef4444');
+                            // Deploy with TRIBAL (BLADE-D) tag
+                            deployAndReturn(['narcan:D'], () => {
+                                document.getElementById('btn-mission').classList.add('active');
+                            });
+                        }
+                    );
+                }, 600);
+            });
+        }
+
+        // Full deploy sequence: doors slide open → drone lifts STRAIGHT UP → hovers above box
+        // → flies off-screen left → mission for ~2.5s → returns to hover → descends STRAIGHT DOWN
+        // → docks on charging deck → doors slide closed → download
+        function deployAndReturn(tagsToDownload, onComplete) {
+            // Phase 1: doors slide open (0.0s - 1.2s)
+            state_.doorsTarget = 1.0;
+            state_.rotorsActive = true;
+            // Phase 2: drone lifts STRAIGHT UP off the deck (1.2s - 2.4s) — hovers directly above charging pad
+            setTimeout(() => {
+                state_.dronePhase = 'rising';
+                state_.droneTargetPos.set(DRONE_PARKED_POS.x, DRONE_PARKED_POS.y + 4.0, DRONE_PARKED_POS.z);
+            }, 1200);
+            // Phase 3: drone translates left off-screen (2.4s - 3.4s) — keeps altitude, just moves laterally
+            setTimeout(() => {
+                state_.dronePhase = 'flying-out';
+                state_.droneTargetPos.set(-22, DRONE_PARKED_POS.y + 4.0, 0);
+                setStatus('SYS_STATUS: DRONE ON MISSION — RECORDING ONBOARD VIDEO', '#fbbf24');
+            }, 2400);
+            // Phase 4: drone is "on mission" off-screen (3.4s - 5.9s = ~2.5 sec away)
+            setTimeout(() => { state_.dronePhase = 'mission'; }, 3400);
+            // Phase 5: drone returns to hover position above box (5.9s - 6.9s)
+            setTimeout(() => {
+                state_.dronePhase = 'flying-in';
+                drone.position.set(-22, DRONE_PARKED_POS.y + 4.0, 0);
+                state_.droneTargetPos.set(DRONE_PARKED_POS.x, DRONE_PARKED_POS.y + 4.0, DRONE_PARKED_POS.z);
+                setStatus('SYS_STATUS: MISSION COMPLETE — DRONE RETURNING TO BASE', '#06b6d4');
+            }, 5900);
+            // Phase 6: drone descends STRAIGHT DOWN onto deck (6.9s - 8.0s)
+            setTimeout(() => {
+                state_.dronePhase = 'descending';
+                state_.droneTargetPos.copy(DRONE_PARKED_POS);
+            }, 6900);
+            // Phase 7: drone docked, rotors stop (8.0s)
+            setTimeout(() => {
+                state_.dronePhase = 'docked';
+                state_.rotorsActive = false;
+                drone.position.copy(DRONE_PARKED_POS);
+                state_.droneTargetPos.copy(DRONE_PARKED_POS);
+                setStatus('SYS_STATUS: DRONE DOCKED — INITIATING TAGGED VIDEO DOWNLOAD', '#06b6d4');
+            }, 8000);
+            // Phase 8: doors slide closed (8.6s)
+            setTimeout(() => { state_.doorsTarget = 0.0; }, 8600);
+            // Phase 9: download (9.2s)
+            setTimeout(() => {
+                runDownloadSequence(tagsToDownload);
+                if (onComplete) onComplete();
+            }, 9200);
+        }
+
+        function runDownloadSequence(tags) {
+            tags.forEach((tag, i) => {
+                const [type, bladeKey] = tag.split(':');
+                const spec = BLADES[bladeKey];
+                const packetColor = type === 'narcan' ? 0xef4444 : spec.color;
+                setTimeout(() => {
+                    diodeGroup.userData.valve.material.emissiveIntensity = 1.4;
+                    // Step 1: drone → diode entry
+                    spawnPacket(
+                        drone.position.clone().add(new THREE.Vector3(0, 0, 0.1)),
+                        new THREE.Vector3(-0.55, DECK_Y + 0.7, 1.2),
+                        packetColor, 3.0,
+                        () => {
+                            // Step 2: through diode
+                            spawnPacket(
+                                new THREE.Vector3(-0.55, DECK_Y + 0.7, 1.2),
+                                new THREE.Vector3(0.55, DECK_Y + 0.7, 1.2),
+                                packetColor, 3.5,
+                                () => {
+                                    // Step 3: diode exit → tagged Jetson
+                                    spawnPacket(
+                                        new THREE.Vector3(0.55, DECK_Y + 0.7, 1.2),
+                                        bladePositions[bladeKey].clone(),
+                                        packetColor, 3.0,
+                                        () => {
+                                            activateBlade(bladeKey, type);
+                                            // Step 4: along the hardwired cable to Starlink terminal
+                                            const cable = bladeCables[bladeKey];
+                                            spawnPacketAlongCurve(
+                                                cable.curve,
+                                                packetColor, 1.6,
+                                                () => {
+                                                    // Step 5: Starlink dish UP to satellite
+                                                    spawnBeam(STARLINK_DISH_POS, SATELLITE_POS, packetColor, 1.0);
+                                                    spawnPacket(
+                                                        STARLINK_DISH_POS,
+                                                        SATELLITE_POS,
+                                                        packetColor, 1.5,
+                                                        () => {
+                                                            // Step 6: satellite DOWN to that blade's cloud
+                                                            spawnBeam(SATELLITE_POS, CLOUD_POSITIONS[bladeKey], packetColor, 1.0);
+                                                            spawnPacket(
+                                                                SATELLITE_POS,
+                                                                CLOUD_POSITIONS[bladeKey],
+                                                                packetColor, 1.5,
+                                                                () => activateCloud(bladeKey)
+                                                            );
+                                                        }
+                                                    );
+                                                }
+                                            );
+                                        }
+                                    );
+                                }
+                            );
+                        }
+                    );
+                }, i * 1100);
+            });
+            setTimeout(() => {
+                const tagDesc = tags.map(t => {
+                    const [type, key] = t.split(':');
+                    return type.toUpperCase() + ' → ' + BLADES[key].codename + ' → ' + BLADES[key].cloudLabel;
+                }).join(' · ');
+                setStatus('SYS_STATUS: VIDEO ROUTED PER TAG — ' + tagDesc + ' — NO CROSSOVER', '#22c55e');
+            }, tags.length * 1100 + 4500);
+        }
+
+        function spawnPacketAlongCurve(curve, color, speed, onArrive) {
+            const m = new THREE.Mesh(
+                new THREE.SphereGeometry(0.10, 12, 10),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1.0 })
+            );
+            const halo = new THREE.Mesh(
+                new THREE.SphereGeometry(0.20, 14, 10),
+                new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })
+            );
+            m.add(halo);
+            m.position.copy(curve.getPoint(0));
+            scene.add(m);
+            packets.push({ mesh: m, halo, curve, t: 0, speed: speed || 1.0, onArrive });
+        }
+
+        function activateBlade(key, type) {
+            const blade = bladeMeshes[key];
+            const leds = bladeLEDs[key];
+            const spec = BLADES[key];
+            const color = type === 'narcan' ? 0xef4444 : spec.color;
+            leds.forEach((led, i) => {
+                setTimeout(() => {
+                    led.material = led.material.clone();
+                    led.material.color.setHex(color);
+                }, i * 80);
+            });
+            blade.userData.pulse = { startT: clock.getElapsedTime(), color };
+        }
+        function activateCloud(key) {
+            const cloud = cloudMeshes[key];
+            const spec = BLADES[key];
+            cloud.userData.cloudMat.emissiveIntensity = 0.5;
+            cloud.userData.cloudMat.color.setHex(spec.color);
+        }
+        function dimAllBladesAndClouds() {
+            BLADE_KEYS.forEach(k => {
+                bladeLEDs[k].forEach(led => { led.material = led.material.clone(); led.material.color.setHex(0x1e293b); });
+                bladeMeshes[k].userData.pulse = null;
+                cloudMeshes[k].userData.cloudMat.emissiveIntensity = 0.0;
+                cloudMeshes[k].userData.cloudMat.color.setHex(0x1e293b);
+            });
+        }
+
+        function resetNode() {
+            state_ = freshState();
+            // Reset drone
+            drone.position.copy(DRONE_PARKED_POS);
+            drone.rotation.set(0, 0, 0);
+            drone.userData.bodyMat.color.setHex(0x141a26);
+            drone.userData.bodyMat.emissive.setHex(0x4a8060);
+            drone.userData.bodyMat.emissiveIntensity = 0.4;
+            drone.userData.survPod.material.color.setHex(0x4a5568);
+            drone.userData.survPod.material.emissive.setHex(0x000000);
+            drone.userData.survPod.material.emissiveIntensity = 0.0;
+            drone.userData.narcanPod.material.emissiveIntensity = 0.45;
+            drone.userData.halos.forEach(h => { h.material.color.setHex(0x4a8060); h.material.opacity = 0.0; });
+            // Reset doors to closed X-positions
+            enclosure.doorL.position.x = enclosure.doorL.userData.closedX;
+            enclosure.doorR.position.x = enclosure.doorR.userData.closedX;
+            // Reset blades/clouds
+            dimAllBladesAndClouds();
+            // Reset diode
+            diodeGroup.userData.valve.material.emissiveIntensity = 0.7;
+            // Clear packets/beams
+            packets.forEach(p => disposeGroup(p.mesh));
+            packets.length = 0;
+            beams.forEach(b => { disposeMesh(b.line); scene.remove(b.line); });
+            beams.length = 0;
+            // Reset HUD
+            setStatus('SYS_STATUS: SOVEREIGN NODE READY — DRONE PARKED · DOORS CLOSED', '#06b6d4');
+            setLatencyChip('token', '5ms', false, false);
+            setLatencyChip('leo', '52ms', false, false);
+            ['btn-token','btn-mission'].forEach(id => document.getElementById(id).classList.remove('active'));
+            document.getElementById('btn-mission').disabled = true;
+            resetShortCode();
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // CONTROLS
+        // ═══════════════════════════════════════════════════════════════
+        document.getElementById('btn-token').addEventListener('click', issueToken);
+        document.getElementById('btn-mission').addEventListener('click', runMission);
+        document.getElementById('btn-lcr').addEventListener('click', triggerLCR);
+        document.getElementById('btn-reset').addEventListener('click', resetNode);
+
+        function onResize() { width = host.clientWidth; height = host.clientHeight; renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); }
+        window.addEventListener('resize', onResize);
+
+        // ═══════════════════════════════════════════════════════════════
+        // ANIMATION LOOP
+        // ═══════════════════════════════════════════════════════════════
+        const clock = new THREE.Clock();
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            // Door animation — FLAT sliding panels, retract horizontally L/R
+            // doorsOpen 0 = both panels closed, meeting at center
+            // doorsOpen 1 = both panels slid fully outward (past their respective enclosure ends)
+            state_.doorsOpen = THREE.MathUtils.lerp(state_.doorsOpen, state_.doorsTarget, 0.06);
+            enclosure.doorL.position.x = THREE.MathUtils.lerp(
+                enclosure.doorL.userData.closedX,
+                enclosure.doorL.userData.openX,
+                state_.doorsOpen
+            );
+            enclosure.doorR.position.x = THREE.MathUtils.lerp(
+                enclosure.doorR.userData.closedX,
+                enclosure.doorR.userData.openX,
+                state_.doorsOpen
+            );
+
+            // Drone movement — lerp to target position
+            drone.position.lerp(state_.droneTargetPos, state_.dronePhase === 'flying-out' || state_.dronePhase === 'flying-in' ? 0.04 : 0.06);
+            // Slight bank toward direction of travel
+            const dx = state_.droneTargetPos.x - drone.position.x;
+            drone.rotation.z = THREE.MathUtils.lerp(drone.rotation.z, dx * 0.04, 0.1);
+            // Idle bob when in flight phases
+            if (state_.dronePhase === 'rising' || state_.dronePhase === 'flying-out' || state_.dronePhase === 'flying-in' || state_.dronePhase === 'descending') {
+                drone.position.y += Math.sin(elapsed * 1.5) * 0.01;
+            }
+            // Hide drone when "on mission" (off-screen) — also push it visually further
+            if (state_.dronePhase === 'mission') {
+                drone.visible = false;
+            } else {
+                drone.visible = true;
+            }
+            // Rotor spin and halo opacity
+            const targetHaloOpacity = state_.rotorsActive ? 0.4 : 0.0;
+            drone.userData.halos.forEach(h => { h.material.opacity = THREE.MathUtils.lerp(h.material.opacity, targetHaloOpacity, 0.1); });
+            const rotorSpeed = state_.rotorsActive ? 1.8 : (state_.dronePhase === 'parked' ? 0.0 : 0.5);
+            drone.userData.rotors.forEach(r => { r.rotation.y += rotorSpeed; });
+
+            // Charging pad pulse when drone is parked
+            const isParked = state_.dronePhase === 'parked' || state_.dronePhase === 'docked';
+            enclosure.group.userData.chargingPads.forEach((pad, i) => {
+                const pulse = isParked ? 0.6 + Math.sin(elapsed * 2 + i) * 0.25 : 0.3;
+                pad.material.emissiveIntensity = pulse;
             });
 
-            // Update Latency Label Positions dynamically
-            ui.labels.edge.style.left = `${(drone.x + 80 + base.x - 180) / 2}px`;
-            ui.labels.edge.style.top = `${drone.y - 25}px`;
+            // Ops hardware LEDs
+            opsHw.userData.fcLeds.forEach((led, i) => {
+                const phase = elapsed * 2 + i * 0.6;
+                const v = (Math.sin(phase) + 1) * 0.5;
+                led.material.color.setRGB(v * 0.4, v * 0.85, v * 0.95);
+            });
+            const leoPulse = (Math.sin(elapsed * 3) + 1) * 0.5;
+            opsHw.userData.leoTip.material.color.setRGB(0.98, 0.75 * leoPulse + 0.25, 0.14);
 
-            ui.labels.sat.style.left = `${(base.x + 180 + sat.x - 80) / 2}px`;
-            ui.labels.sat.style.top = `${sat.y - 25}px`;
+            // Diode valve subtle pulse
+            diodeGroup.userData.valve.material.emissiveIntensity = THREE.MathUtils.lerp(
+                diodeGroup.userData.valve.material.emissiveIntensity,
+                0.7 + Math.sin(elapsed * 2.5) * 0.15,
+                0.08
+            );
 
-            ui.labels.total.style.left = `${base.x}px`;
-            ui.labels.total.style.top = `${base.y + 195}px`;
+            // Starlink status LED pulse
+            const slPulse = (Math.sin(elapsed * 1.5) + 1) * 0.5;
+            starlinkTerminal.userData.statusLed.material.color.setRGB(slPulse * 0.4, slPulse * 0.7 + 0.2, slPulse * 0.85 + 0.15);
+
+            // Satellite gentle drift + strobe
+            satellite.position.x = SATELLITE_POS.x + Math.sin(elapsed * 0.2) * 0.4;
+            satellite.rotation.y += 0.005;
+            const satBlink = Math.sin(elapsed * 4) > 0.6 ? 1.0 : 0.2;
+            satellite.userData.strobe.material.color.setRGB(satBlink, satBlink, satBlink);
+
+            // Active blade pulses
+            BLADE_KEYS.forEach(k => {
+                const blade = bladeMeshes[k];
+                if (blade.userData.pulse) {
+                    const age = elapsed - blade.userData.pulse.startT;
+                    const s = 1 + Math.sin(age * 4) * 0.04 * Math.exp(-age * 0.4);
+                    blade.scale.set(s, s, s);
+                } else {
+                    blade.scale.set(1, 1, 1);
+                }
+            });
+
+            // Update packets
+            for (let i = packets.length - 1; i >= 0; i--) {
+                const p = packets[i];
+                p.t += dt * p.speed;
+                if (p.t >= 1.0) {
+                    if (p.onArrive) p.onArrive();
+                    disposeGroup(p.mesh);
+                    packets.splice(i, 1);
+                } else {
+                    let pos;
+                    if (p.curve) {
+                        pos = p.curve.getPoint(p.t);
+                    } else if (p.waypoint) {
+                        if (p.t < 0.5) pos = p.start.clone().lerp(p.waypoint, p.t * 2);
+                        else pos = p.waypoint.clone().lerp(p.end, (p.t - 0.5) * 2);
+                    } else {
+                        pos = p.start.clone().lerp(p.end, p.t);
+                    }
+                    p.mesh.position.copy(pos);
+                }
+            }
+
+            // Update beams (fade out)
+            for (let i = beams.length - 1; i >= 0; i--) {
+                const b = beams[i];
+                const age = elapsed - b.born;
+                if (age > b.life) {
+                    disposeMesh(b.line); scene.remove(b.line);
+                    beams.splice(i, 1);
+                } else {
+                    b.mat.opacity = Math.max(0, 0.85 * (1 - age / b.life));
+                }
+            }
+
+            // Callouts — track 3D anchors to screen
+            // enclosure + uplink float ABOVE their elements; diode + jetsons float BELOW (cleaner sightlines)
+            const placeCalloutAbove = (id, anchor, offX, offY) => {
+                const el = document.getElementById('callout-' + id);
+                if (!el) return;
+                const p = projectToScreen(anchor);
+                el.style.left = (p.x + (offX || 0)) + 'px';
+                el.style.top = (p.y + (offY || 0)) + 'px';
+                el.style.transform = 'translate(-50%, -100%)';
+            };
+            const placeCalloutBelow = (id, anchor, offX, offY) => {
+                const el = document.getElementById('callout-' + id);
+                if (!el) return;
+                const p = projectToScreen(anchor);
+                el.style.left = (p.x + (offX || 0)) + 'px';
+                el.style.top = (p.y + (offY || 0)) + 'px';
+                el.style.transform = 'translate(-50%, 0%)';
+            };
+            placeCalloutAbove('enclosure', calloutAnchors.enclosure, 0, -10);
+            placeCalloutBelow('jetsons', calloutAnchors.jetsons, 0, 10);
+            placeCalloutBelow('diode', calloutAnchors.diode, 0, 10);
+            placeCalloutAbove('uplink', calloutAnchors.uplink, 0, -10);
+
+            stars.rotation.y += 0.00006;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
         }
-
-        window.addEventListener('resize', resizeSVG);
-        window.onload = () => { setTimeout(resizeSVG, 100); };
+        animate();
+    })();
     </script>
 </body>
 </html>

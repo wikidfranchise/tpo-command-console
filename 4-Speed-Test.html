@@ -2,91 +2,770 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TPO | Edge Latency — Sovereign Node Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Edge Latency Drag Race — Helicopter Encounter</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #0f172a; font-family: 'Segoe UI', sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        #dashboard { height: 180px; background: #020617; border-bottom: 2px solid #334155; display: flex; gap: 20px; padding: 15px; box-sizing: border-box; }
-        .stat-box { flex: 1; background: rgba(15, 23, 42, 0.8); border: 1px solid #334155; border-radius: 8px; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; }
-        .stat-label { font-size: 10px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; position: absolute; top: 12px; }
-        .stat-value { font-size: 58px; font-weight: bold; font-family: 'Courier New', monospace; color: #10b981; line-height: 1; }
-        .stat-unit { font-size: 14px; color: #64748b; }
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(ellipse at center, #0a1530 0%, #020617 100%); }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
 
-        #visualization { flex-grow: 1; position: relative; background: radial-gradient(circle at center, #1e293b 0%, #020617 100%); overflow: hidden; }
-        .track { position: absolute; left: 10%; right: 10%; height: 2px; background: #334155; }
-        .track-cloud { top: 30%; } .track-tpo { top: 70%; }
-        
-        .drone { position: absolute; width: 20px; height: 20px; background: #0ea5e9; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 15px #0ea5e9; z-index: 10; }
-        .hazard { position: absolute; left: 80%; width: 40px; height: 40px; background: #ef4444; transform: translate(-50%, -50%); border-radius: 4px; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
-        .stop-point { position: absolute; width: 4px; height: 30px; background: #fbbf24; transform: translate(-50%, -50%); box-shadow: 0 0 10px #fbbf24; display: none; }
-        .track-label { position: absolute; left: 10%; transform: translateY(-30px); font-size: 14px; font-weight: bold; letter-spacing: 2px; color: #94a3b8; }
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #06b6d4; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); }
 
-        /* Tactical Controls */
-        #controls { height: 60px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 1000; }
-        .ctrl-btn { background: #0f172a; border: 1px solid #334155; color: #cbd5e1; padding: 10px 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: 4px; }
-        .ctrl-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #06b6d4; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #64748b; margin-top: 4px; }
+
+        /* Two stat panels — UTM top-right, TPO bottom-right */
+        .stat-panel {
+            position: absolute; right: 20px;
+            background: rgba(0,0,0,0.72); border: 1px solid #334155;
+            padding: 14px 18px; font-family: 'Courier New', monospace;
+            backdrop-filter: blur(4px); width: 240px;
+            transition: all 0.3s; z-index: 100;
+        }
+        .stat-panel.utm { top: 20px; border-left: 3px solid #f97316; }
+        .stat-panel.tpo { bottom: 90px; border-left: 3px solid #06b6d4; }
+        .stat-panel.utm.collision { border-color: #ef4444; box-shadow: 0 0 24px rgba(239,68,68,0.5); }
+        .stat-panel.tpo.success { border-color: #22c55e; box-shadow: 0 0 24px rgba(34,197,94,0.4); }
+        .stat-lane-label { font-size: 10px; letter-spacing: 0.25em; color: #64748b; font-weight: bold; }
+        .stat-lane-name { font-size: 14px; color: #e2e8f0; margin: 4px 0 12px; letter-spacing: 0.1em; font-weight: bold; }
+        .stat-panel.utm .stat-lane-name { color: #fdba74; }
+        .stat-panel.tpo .stat-lane-name { color: #67e8f9; }
+        .stat-row { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; font-size: 11px; }
+        .stat-row .label { color: #64748b; letter-spacing: 0.1em; }
+        .stat-row .val { font-weight: bold; font-size: 14px; }
+        .stat-panel.utm .val { color: #fdba74; }
+        .stat-panel.tpo .val { color: #67e8f9; }
+        .stat-status { margin-top: 10px; padding-top: 10px; border-top: 1px solid #1e293b; font-size: 12px; letter-spacing: 0.15em; font-weight: bold; text-align: center; transition: color 0.3s; }
+        .stat-status.ready { color: #64748b; }
+        .stat-status.en-route { color: #fbbf24; }
+        .stat-status.detected { color: #fbbf24; }
+        .stat-status.awaiting { color: #f97316; }
+        .stat-status.stopped { color: #22c55e; }
+        .stat-status.collision { color: #ef4444; animation: pulse 0.5s infinite alternate; }
+        @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
+
+        #velocity-chip { position: absolute; top: 70px; left: 20px; background: rgba(0,0,0,0.72); border: 1px solid #334155; padding: 10px 16px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; z-index: 100; backdrop-filter: blur(4px); }
+        #velocity-chip strong { color: #fbbf24; font-size: 18px; font-weight: bold; }
+
+        #race-timer { position: absolute; bottom: 90px; left: 20px; background: rgba(0,0,0,0.72); border: 1px solid #334155; padding: 10px 16px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; z-index: 100; backdrop-filter: blur(4px); }
+        #race-timer strong { color: #06b6d4; font-size: 16px; font-weight: bold; min-width: 70px; display: inline-block; text-align: right; }
+
+        #legend { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.72); border: 1px solid #06b6d4; padding: 10px 16px; font-family: 'Courier New', monospace; z-index: 100; backdrop-filter: blur(4px); display: flex; gap: 20px; }
+        .legend-row { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #cbd5e1; letter-spacing: 0.1em; }
+        .legend-swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 1000; }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 4px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 12px 18px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.race-btn { border-color: #22c55e; color: #86efac; }
+        .step-btn.race-btn:hover { background: rgba(34,197,94,0.18); }
+        .step-btn.race-btn.live { background: rgba(239,68,68,0.22); border-color: #ef4444; color: #fca5a5; box-shadow: 0 0 14px rgba(239,68,68,0.4); }
+        .step-btn.speed-btn { border-color: #fbbf24; color: #fbbf24; margin-left: 8px; }
+        .step-btn.speed-btn:hover { background: rgba(251,191,36,0.12); }
+
+        #countdown { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(2); font-family: 'Courier New', monospace; font-size: 120px; font-weight: bold; color: #fbbf24; text-shadow: 0 0 40px rgba(251,191,36,0.7); opacity: 0; pointer-events: none; z-index: 250; transition: opacity 0.2s; }
+        #countdown.visible { opacity: 1; }
+
+        @media (max-width: 800px) { .stat-panel { width: 180px; } }
     </style>
 </head>
 <body>
-    <div id="dashboard">
-        <div class="stat-box"><div class="stat-label">Velocity</div><div class="stat-value">80</div><div class="stat-unit">Feet per Second</div></div>
-        <div class="stat-box"><div class="stat-label">Network Ping</div><div class="stat-value" id="ping-disp">0</div><div class="stat-unit">Milliseconds</div></div>
-        <div class="stat-box"><div class="stat-label">Blind Travel (Braking Distance)</div><div class="stat-value" id="dist-disp" style="color:#ef4444">0</div><div class="stat-unit">Feet</div></div>
-    </div>
-    
-    <div id="visualization">
-        <div class="track-label" style="top: 30%;">LEGACY CLOUD ARCHITECTURE (5 HOPS)</div>
-        <div class="track track-cloud"></div>
-        <div class="hazard" style="top: 30%;"></div>
-        <div class="drone" id="drone-cloud" style="top: 30%; left: 10%;"></div>
-        <div class="stop-point" id="stop-cloud" style="top: 30%;"></div>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
 
-        <div class="track-label" style="top: 70%;">TPO SOVEREIGN EDGE (1 HOP)</div>
-        <div class="track track-tpo"></div>
-        <div class="hazard" style="top: 70%;"></div>
-        <div class="drone" id="drone-tpo" style="top: 70%; left: 10%;"></div>
-        <div class="stop-point" id="stop-tpo" style="top: 70%;"></div>
+        <div id="status-bar">SYS_STATUS: READY — CLICK RACE TO BEGIN</div>
+        <div id="velocity-chip">VELOCITY <strong>80</strong> FT/SEC</div>
+
+        <div id="brand-mark">
+            <div class="brand-title">EDGE LATENCY · DRAG RACE</div>
+            <div class="brand-sub">HELICOPTER ENCOUNTER · IDENTICAL DRONES, IDENTICAL ENCOUNTER</div>
+        </div>
+
+        <div class="stat-panel utm" id="utm-panel">
+            <div class="stat-lane-label">LANE 1 · LEGACY ARCHITECTURE</div>
+            <div class="stat-lane-name">CLOUD UTM</div>
+            <div class="stat-row"><span class="label">PING TARGET</span><span class="val">700ms</span></div>
+            <div class="stat-row"><span class="label">PING ELAPSED</span><span class="val" id="utm-ping">0ms</span></div>
+            <div class="stat-row"><span class="label">BLIND TRAVEL</span><span class="val" id="utm-blind">0 ft</span></div>
+            <div class="stat-status ready" id="utm-status">READY</div>
+        </div>
+
+        <div class="stat-panel tpo" id="tpo-panel">
+            <div class="stat-lane-label">LANE 2 · TPO SOVEREIGN EDGE</div>
+            <div class="stat-lane-name">PECK PROTOCOL</div>
+            <div class="stat-row"><span class="label">PING TARGET</span><span class="val">75ms</span></div>
+            <div class="stat-row"><span class="label">PING ELAPSED</span><span class="val" id="tpo-ping">0ms</span></div>
+            <div class="stat-row"><span class="label">BLIND TRAVEL</span><span class="val" id="tpo-blind">0 ft</span></div>
+            <div class="stat-status ready" id="tpo-status">READY</div>
+        </div>
+
+        <div id="race-timer">RACE TIME <strong id="timer-val">0.000s</strong></div>
+
+        <div id="legend">
+            <div class="legend-row"><div class="legend-swatch" style="background:#f97316"></div>UTM CLOUD DRONE</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#06b6d4"></div>PECK EDGE DRONE</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#fbbf24"></div>DETECTION POINT</div>
+        </div>
+
+        <div id="countdown"></div>
     </div>
 
     <div id="controls">
-        <button class="ctrl-btn" onclick="runCloudTest()">Execute: Cloud Test (480ms)</button>
-        <button class="ctrl-btn" style="border-color:#10b981; color:#10b981" onclick="runTPOTest()">Execute: TPO Edge Test (52ms)</button>
-        <button class="ctrl-btn" onclick="resetSim()">Reset Data</button>
+        <span class="ctrl-label">DRAG RACE</span>
+        <button class="step-btn race-btn" id="btn-race">▶ RACE</button>
+        <button class="step-btn speed-btn" id="btn-speed">⏵ SPEED: DEMO (0.25×)</button>
+        <button class="step-btn" id="btn-reset" style="margin-left: auto;">Reset</button>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const FEET_PER_MS = 80 / 1000;
-        function animateDrone(type, targetMs) {
-            const drone = document.getElementById(`drone-${type}`); const stopMarker = document.getElementById(`stop-${type}`);
-            const pingDisp = document.getElementById('ping-disp'); const distDisp = document.getElementById('dist-disp');
-            const startX = 10; const hazardX = 80; let currentX = startX; let currentMs = 0;
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
 
-            drone.style.left = startX + '%'; stopMarker.style.display = 'none';
-            pingDisp.style.color = targetMs > 100 ? '#ef4444' : '#10b981';
-            distDisp.style.color = targetMs > 100 ? '#ef4444' : '#10b981';
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        host.appendChild(renderer.domElement);
 
-            function step() {
-                if (currentMs < targetMs) {
-                    currentMs += 8; currentX += 0.5;
-                    if (currentX > hazardX) currentX = hazardX;
-                    drone.style.left = currentX + '%'; pingDisp.innerText = currentMs; distDisp.innerText = (currentMs * FEET_PER_MS).toFixed(1);
-                    requestAnimationFrame(step);
-                } else {
-                    pingDisp.innerText = targetMs; distDisp.innerText = (targetMs * FEET_PER_MS).toFixed(1);
-                    stopMarker.style.left = currentX + '%'; stopMarker.style.display = 'block';
-                    if(targetMs > 100) drone.style.background = '#ef4444'; else drone.style.background = '#10b981';
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a1a2e, 0.0028);
+
+        // Night sky
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x020617)}, midColor: {value: new THREE.Color(0x0a1a2e)}, horizonColor: {value: new THREE.Color(0x1d4870)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.4, h)); col = mix(col, topColor, smoothstep(0.3, 1.0, h)); }
+                    else { col = horizonColor; }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(2000, 32, 16), skyMat));
+
+        // Stars
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(800 * 3);
+        for (let i = 0; i < 800; i++) {
+            const r = 1500, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.7 + 0.1);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xc8d4f0, size: 1.0, sizeAttenuation: false, transparent: true, opacity: 0.55 }));
+        scene.add(stars);
+
+        // Lights
+        scene.add(new THREE.HemisphereLight(0x1d4870, 0x020617, 0.4));
+        scene.add(new THREE.AmbientLight(0xc8d4f0, 0.18));
+        const moon = new THREE.DirectionalLight(0xc8d4f0, 0.35); moon.position.set(80, 100, 60); scene.add(moon);
+
+        // Ground — dark slate
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ color: 0x0a1426, roughness: 0.95 }));
+        ground.rotation.x = -Math.PI / 2; scene.add(ground);
+        const grid = new THREE.GridHelper(800, 40, 0x06b6d4, 0x1e293b);
+        grid.position.y = 0.1; grid.material.transparent = true; grid.material.opacity = 0.22; scene.add(grid);
+
+        // Camera — side view, slightly elevated. FOV 50 for vertical headroom (helo + cloud).
+        const camera = new THREE.PerspectiveCamera(50, width/height, 0.5, 4000);
+        camera.position.set(8, 22, 75); camera.lookAt(8, 22, 0);
+
+        function disposeMesh(m) { if (m.geometry) m.geometry.dispose(); if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); } }
+        function disposeGroup(g) { g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); }); if (g.parent) g.parent.remove(g); }
+
+        // ═══════════════════════════════════════════════════════
+        // GEOMETRY
+        // Lanes run along X axis. UTM lane y=28, TPO lane y=12.
+        // Drones start at x=-45, helo encounter at x=+30.
+        // 1 unit = 1 ft. Detection at x=+18 (12 ft before helo).
+        // ═══════════════════════════════════════════════════════
+        const UTM_Y = 28;
+        const TPO_Y = 12;
+        const START_X = -10;     // was -45 — much shorter cruise distance
+        const HELO_X = 26;       // was 30 — encounter point closer to start
+        const DETECT_X = 14;     // was 18 — detection 12 ft before helo (matches blind-travel math)
+
+        // Lane visualizers — glowing horizontal rails
+        function buildLaneRail(y, color, label, sub) {
+            const g = new THREE.Group();
+            // Track line
+            const railGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(START_X - 5, y, 0), new THREE.Vector3(HELO_X + 30, y, 0)]);
+            const rail = new THREE.Line(railGeo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.4 }));
+            g.add(rail);
+            // Distance ticks every 5 units
+            for (let x = START_X; x <= HELO_X + 25; x += 5) {
+                const tick = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.6, 0.2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.45 }));
+                tick.position.set(x, y, 0); g.add(tick);
+            }
+            // Detection point — yellow vertical line at x=18
+            const detPts = [new THREE.Vector3(DETECT_X, y - 4, 0), new THREE.Vector3(DETECT_X, y + 4, 0)];
+            const detLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(detPts), new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.7, linewidth: 2 }));
+            g.add(detLine);
+            // Glowing detection beacon
+            const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.8 }));
+            beacon.position.set(DETECT_X, y, 0); g.add(beacon);
+            scene.add(g);
+            return g;
+        }
+        buildLaneRail(UTM_Y, 0xf97316, 'UTM', 'CLOUD');
+        buildLaneRail(TPO_Y, 0x06b6d4, 'TPO', 'EDGE');
+
+        // ═══════════════════════════════════════════════════════
+        // ARCHITECTURE ICONS — Cloud (top) + Sovereign Node Blade (bottom)
+        // These are the C2 endpoints. Packets travel between drones and these.
+        // ═══════════════════════════════════════════════════════
+        // Cloud icon — cluster of overlapping spheres at altitude
+        function buildCloudIcon(x, y) {
+            const g = new THREE.Group();
+            const cloudMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, roughness: 0.6, emissive: 0xf97316, emissiveIntensity: 0.25 });
+            const positions = [[0,0,0],[2.2,0.3,0],[-2.0,0.2,0.2],[1.0,-0.6,0],[-0.8,-0.5,0.3],[1.6,-0.2,-0.2]];
+            const sizes = [1.6, 1.3, 1.4, 1.0, 1.1, 1.2];
+            positions.forEach((p, i) => {
+                const blob = new THREE.Mesh(new THREE.SphereGeometry(sizes[i], 14, 10), cloudMat);
+                blob.position.set(p[0], p[1], p[2]); g.add(blob);
+            });
+            // "CLOUD" text plane underneath
+            const labelCanvas = document.createElement('canvas');
+            labelCanvas.width = 256; labelCanvas.height = 64;
+            const ctx = labelCanvas.getContext('2d');
+            ctx.fillStyle = 'rgba(15,23,42,0.85)'; ctx.fillRect(0, 0, 256, 64);
+            ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3; ctx.strokeRect(2, 2, 252, 60);
+            ctx.fillStyle = '#fdba74'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
+            ctx.fillText('CLOUD UTM', 128, 32);
+            ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 13px monospace';
+            ctx.fillText('5-HOP ROUND TRIP', 128, 52);
+            const tex = new THREE.CanvasTexture(labelCanvas);
+            const label = new THREE.Mesh(new THREE.PlaneGeometry(8, 2), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
+            label.position.set(0, -2.5, 0); g.add(label);
+            // Pulse effect (active during packet transit)
+            const pulse = new THREE.Mesh(new THREE.SphereGeometry(3.2, 16, 10), new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
+            g.add(pulse); g.userData.pulse = pulse;
+            g.position.set(x, y, 0);
+            scene.add(g);
+            return g;
+        }
+        const cloudIcon = buildCloudIcon(HELO_X, 50);
+
+        // Blade — small box on the ground with cyan accent (Sovereign Node)
+        function buildBladeIcon(x, y) {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.6 });
+            // Main blade body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.6, 1.4), bodyMat);
+            body.position.y = 0.8; g.add(body);
+            // Cyan accent strip on front
+            const strip = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 0.05), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            strip.position.set(0, 1.0, 0.72); g.add(strip);
+            // LED lights
+            for (let i = 0; i < 5; i++) {
+                const led = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), new THREE.MeshBasicMaterial({ color: 0x67e8f9 }));
+                led.position.set(-1.1 + i * 0.55, 0.5, 0.72); g.add(led);
+            }
+            // Antenna
+            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), bodyMat);
+            ant.position.set(1.2, 2.2, 0); g.add(ant);
+            // Label plate
+            const labelCanvas = document.createElement('canvas');
+            labelCanvas.width = 256; labelCanvas.height = 64;
+            const ctx = labelCanvas.getContext('2d');
+            ctx.fillStyle = 'rgba(15,23,42,0.85)'; ctx.fillRect(0, 0, 256, 64);
+            ctx.strokeStyle = '#06b6d4'; ctx.lineWidth = 3; ctx.strokeRect(2, 2, 252, 60);
+            ctx.fillStyle = '#67e8f9'; ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
+            ctx.fillText('SOVEREIGN NODE', 128, 32);
+            ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 13px monospace';
+            ctx.fillText('LOCAL · 1-HOP', 128, 52);
+            const tex = new THREE.CanvasTexture(labelCanvas);
+            const label = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.75), new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide }));
+            label.position.set(0, 4.0, 0); g.add(label);
+            // Pulse
+            const pulse = new THREE.Mesh(new THREE.SphereGeometry(2.0, 16, 10), new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
+            pulse.position.y = 0.8; g.add(pulse); g.userData.pulse = pulse;
+            g.position.set(x, y, 0);
+            scene.add(g);
+            return g;
+        }
+        const bladeIcon = buildBladeIcon(HELO_X, 0);
+
+        // ═══════════════════════════════════════════════════════
+        // C2 LINKS — vertical lines from drone to controller
+        // ═══════════════════════════════════════════════════════
+        function buildC2Link(color) {
+            const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+            const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.0 }));
+            scene.add(line);
+            return { line, geo };
+        }
+        const utmLink = buildC2Link(0xf97316);
+        const tpoLink = buildC2Link(0x06b6d4);
+
+        // ═══════════════════════════════════════════════════════
+        // PACKET — small sphere that travels along the C2 link
+        // ═══════════════════════════════════════════════════════
+        function buildPacket(color) {
+            const p = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.0 }));
+            const halo = new THREE.Mesh(new THREE.SphereGeometry(0.85, 14, 10), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
+            p.add(halo); p.userData.halo = halo;
+            scene.add(p);
+            return p;
+        }
+        const utmPacket = buildPacket(0xf97316);
+        const tpoPacket = buildPacket(0x06b6d4);
+
+        // ═══════════════════════════════════════════════════════
+        // DRONE FACTORY
+        // ═══════════════════════════════════════════════════════
+        function makeDrone(color, emissive) {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.4, metalness: 0.7, emissive: color, emissiveIntensity: 0.6 });
+            g.userData.bodyMat = bodyMat;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.34, 0.95), bodyMat);
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), new THREE.MeshBasicMaterial({ color: emissive }));
+            eye.position.y = -0.24; g.add(eye); g.userData.eye = eye;
+            const armR = 0.72;
+            const armPos = [[armR,0,armR],[-armR,0,armR],[armR,0,-armR],[-armR,0,-armR]];
+            const rotors = []; const halos = [];
+            armPos.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.18, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], 0.11, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.04, 0.08), new THREE.MeshBasicMaterial({ color: 0x000, transparent: true, opacity: 0.5 }));
+                rotor.position.set(p[0], 0.27, p[2]); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 14), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0], 0.27, p[2]); halo.rotation.x = -Math.PI/2; g.add(halo); halos.push(halo);
+            });
+            g.userData.rotors = rotors; g.userData.halos = halos;
+            g.userData.color = color;
+            g.userData.emissive = emissive;
+            return g;
+        }
+        const utmDrone = makeDrone(0xf97316, 0xfdba74); scene.add(utmDrone);
+        const tpoDrone = makeDrone(0x06b6d4, 0x67e8f9); scene.add(tpoDrone);
+
+        // Drone trails
+        function makeTrail(maxPts, color) {
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(maxPts * 3);
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({ color, size: 0.55, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+            const points = new THREE.Points(geo, mat);
+            scene.add(points);
+            return { points, geo, pos, mat, maxPts, history: [] };
+        }
+        const utmTrail = makeTrail(32, 0xf97316);
+        const tpoTrail = makeTrail(32, 0x06b6d4);
+
+        // ═══════════════════════════════════════════════════════
+        // HELICOPTER FACTORY
+        // ═══════════════════════════════════════════════════════
+        function makeHelicopter() {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.4, metalness: 0.55, emissive: 0x06192a, emissiveIntensity: 0.3 });
+            // Fuselage — egg shape
+            const fuselage = new THREE.Mesh(new THREE.SphereGeometry(1.6, 18, 14), bodyMat);
+            fuselage.scale.set(1.4, 1.0, 0.9); g.add(fuselage);
+            // Cockpit (windscreen)
+            const glass = new THREE.Mesh(new THREE.SphereGeometry(1.2, 18, 14, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0x88aabb, roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.65 }));
+            glass.scale.set(0.85, 0.7, 0.7); glass.position.set(1.2, 0.2, 0); g.add(glass);
+            // Tail boom
+            const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.4, 4.0, 10), bodyMat);
+            tail.rotation.z = Math.PI/2; tail.position.x = -3.0; g.add(tail);
+            // Tail vertical fin
+            const fin = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.1, 0.1), bodyMat);
+            fin.position.set(-4.7, 0.5, 0); g.add(fin);
+            // Tail rotor (rotating)
+            const tailRotor = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.5, 0.10), new THREE.MeshBasicMaterial({ color: 0x222, transparent: true, opacity: 0.85 }));
+            tailRotor.position.set(-4.7, 0.5, 0.4); g.add(tailRotor);
+            g.userData.tailRotor = tailRotor;
+            // Main rotor mast
+            const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.7, 8), bodyMat);
+            mast.position.y = 1.3; g.add(mast);
+            // Main rotor (rotating, large blur disc)
+            const mainRotor = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.05, 0.18), new THREE.MeshBasicMaterial({ color: 0x222, transparent: true, opacity: 0.55 }));
+            mainRotor.position.y = 1.7; g.add(mainRotor);
+            const mainRotor2 = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 7.5), new THREE.MeshBasicMaterial({ color: 0x222, transparent: true, opacity: 0.55 }));
+            mainRotor2.position.y = 1.7; g.add(mainRotor2);
+            g.userData.mainRotor = mainRotor;
+            g.userData.mainRotor2 = mainRotor2;
+            // Skids
+            for (const side of [-1, 1]) {
+                const skid = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x4a5568 }));
+                skid.rotation.z = Math.PI/2;
+                skid.position.set(0, -1.3, side * 0.7);
+                g.add(skid);
+                for (const xs of [-1.0, 1.0]) {
+                    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 6), new THREE.MeshStandardMaterial({ color: 0x4a5568 }));
+                    strut.position.set(xs, -0.95, side * 0.7); g.add(strut);
                 }
             }
-            requestAnimationFrame(step);
+            // Anti-collision strobe (top of mast)
+            const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+            strobe.position.y = 1.95; g.add(strobe);
+            g.userData.strobe = strobe;
+            // Strobe halo
+            const strobeHalo = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+            strobeHalo.position.y = 1.95; g.add(strobeHalo);
+            g.userData.strobeHalo = strobeHalo;
+            // Nav lights — red on left/port, green on right/starboard
+            const navL = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+            navL.position.set(0.5, 0.0, -1.2); g.add(navL);
+            const navR = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0x30ff30 }));
+            navR.position.set(0.5, 0.0, 1.2); g.add(navR);
+            return g;
         }
-        function runCloudTest() { animateDrone('cloud', 480); }
-        function runTPOTest() { animateDrone('tpo', 52); }
-        function resetSim() {
-            document.getElementById('drone-cloud').style.left = '10%'; document.getElementById('drone-tpo').style.left = '10%';
-            document.getElementById('drone-cloud').style.background = '#0ea5e9'; document.getElementById('drone-tpo').style.background = '#0ea5e9';
-            document.getElementById('stop-cloud').style.display = 'none'; document.getElementById('stop-tpo').style.display = 'none';
-            document.getElementById('ping-disp').innerText = "0"; document.getElementById('dist-disp').innerText = "0";
+        const utmHelo = makeHelicopter(); scene.add(utmHelo);
+        const tpoHelo = makeHelicopter(); scene.add(tpoHelo);
+
+        // Explosion particles (pre-made, hidden)
+        function makeExplosion() {
+            const g = new THREE.Group();
+            const particles = [];
+            for (let i = 0; i < 40; i++) {
+                const p = new THREE.Mesh(new THREE.SphereGeometry(0.18 + Math.random() * 0.25, 6, 4), new THREE.MeshBasicMaterial({ color: i < 25 ? 0xff6020 : 0xffd040, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false }));
+                const dir = new THREE.Vector3((Math.random() - 0.5) * 2, (Math.random() - 0.3) * 2, (Math.random() - 0.5) * 2).normalize();
+                const speed = 5 + Math.random() * 8;
+                p.userData.dir = dir; p.userData.speed = speed; p.userData.life = 1.2 + Math.random() * 0.6;
+                g.add(p); particles.push(p);
+            }
+            g.userData.particles = particles;
+            g.userData.active = false;
+            scene.add(g);
+            return g;
         }
+        const utmExplosion = makeExplosion();
+
+        // ═══════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════
+        const STATE = { IDLE: 'idle', COUNTDOWN: 'countdown', RACING: 'racing', COMPLETE: 'complete' };
+        let state = STATE.IDLE;
+        let raceT = 0;             // race time (animation-frame)
+        let demoSpeed = 0.25;       // 0.25 = quarter-speed (slow-mo for clarity)
+        const DRONE_SPEED = 80;     // ft/sec real-time
+        const HELO_DESCENT = 24;    // units/sec demo time (calibrated to sync with drone arrival at HELO_X)
+        const HELO_START_Y = 40;    // helo descent start altitude — was 70 (off-screen)
+
+        const utmState = { x: START_X, y: UTM_Y, vx: 0, exploded: false, packetSent: false, packetT: 0, packetReturned: false, helo: utmHelo, status: 'READY' };
+        const tpoState = { x: START_X, y: TPO_Y, vx: 0, stopped: false, packetSent: false, packetT: 0, packetReturned: false, helo: tpoHelo, status: 'READY', stopX: null };
+
+        function setStatusBar(msg, color) {
+            const el = document.getElementById('status-bar');
+            el.textContent = msg;
+            el.style.color = color || '#06b6d4';
+            el.style.borderColor = (color || '#06b6d4') + '66';
+        }
+        function setLaneStatus(lane, statusText, statusClass) {
+            const el = document.getElementById(lane + '-status');
+            el.textContent = statusText;
+            el.className = 'stat-status ' + statusClass;
+        }
+
+        function resetRace() {
+            // Reset drones
+            utmState.x = START_X; utmState.y = UTM_Y; utmState.vx = 0; utmState.exploded = false;
+            utmState.packetSent = false; utmState.packetT = 0; utmState.packetReturned = false;
+            utmDrone.position.set(START_X, UTM_Y, 0); utmDrone.rotation.set(0, 0, 0); utmDrone.visible = true;
+            utmDrone.userData.bodyMat.emissiveIntensity = 0.6;
+            tpoState.x = START_X; tpoState.y = TPO_Y; tpoState.vx = 0; tpoState.stopped = false; tpoState.stopX = null;
+            tpoState.packetSent = false; tpoState.packetT = 0; tpoState.packetReturned = false;
+            tpoDrone.position.set(START_X, TPO_Y, 0); tpoDrone.rotation.set(0, 0, 0); tpoDrone.visible = true;
+
+            // Reset helos to high altitude
+            utmHelo.position.set(HELO_X, HELO_START_Y, 0);
+            tpoHelo.position.set(HELO_X, HELO_START_Y, 0);
+            utmHelo.visible = true; tpoHelo.visible = true;
+
+            // Reset trails
+            utmTrail.history = []; tpoTrail.history = [];
+
+            // Reset packets
+            utmPacket.material.opacity = 0; utmPacket.userData.halo.material.opacity = 0;
+            tpoPacket.material.opacity = 0; tpoPacket.userData.halo.material.opacity = 0;
+            utmLink.line.material.opacity = 0; tpoLink.line.material.opacity = 0;
+            cloudIcon.userData.pulse.material.opacity = 0;
+            bladeIcon.userData.pulse.material.opacity = 0;
+
+            // Reset explosion
+            utmExplosion.userData.active = false;
+            utmExplosion.userData.particles.forEach(p => { p.material.opacity = 0; p.position.set(0,0,0); });
+
+            // Reset HUD
+            document.getElementById('utm-ping').textContent = '0ms';
+            document.getElementById('utm-blind').textContent = '0 ft';
+            document.getElementById('tpo-ping').textContent = '0ms';
+            document.getElementById('tpo-blind').textContent = '0 ft';
+            document.getElementById('utm-panel').classList.remove('collision');
+            document.getElementById('tpo-panel').classList.remove('success');
+            setLaneStatus('utm', 'READY', 'ready');
+            setLaneStatus('tpo', 'READY', 'ready');
+            document.getElementById('timer-val').textContent = '0.000s';
+
+            // Reset race state
+            state = STATE.IDLE; raceT = 0;
+            const btn = document.getElementById('btn-race');
+            btn.textContent = '▶ RACE'; btn.classList.remove('live');
+            setStatusBar('SYS_STATUS: READY — CLICK RACE TO BEGIN', '#06b6d4');
+        }
+        resetRace();
+
+        // ═══════════════════════════════════════════════════════
+        // CONTROLS
+        // ═══════════════════════════════════════════════════════
+        function startRace() {
+            if (state === STATE.RACING || state === STATE.COUNTDOWN) return;
+            resetRace();
+            state = STATE.COUNTDOWN;
+            const btn = document.getElementById('btn-race');
+            btn.textContent = '▶ RACING…'; btn.classList.add('live');
+            setStatusBar('SYS_STATUS: COUNTDOWN', '#fbbf24');
+            // Countdown 3-2-1-GO
+            const countdown = document.getElementById('countdown');
+            const seq = ['3', '2', '1', 'GO'];
+            let i = 0;
+            const tick = () => {
+                if (i >= seq.length) {
+                    countdown.classList.remove('visible');
+                    state = STATE.RACING;
+                    setStatusBar('SYS_STATUS: RACE LIVE — DRONES EN ROUTE', '#06b6d4');
+                    setLaneStatus('utm', 'EN ROUTE', 'en-route');
+                    setLaneStatus('tpo', 'EN ROUTE', 'en-route');
+                    return;
+                }
+                countdown.textContent = seq[i];
+                countdown.classList.add('visible');
+                i++;
+                setTimeout(() => { countdown.classList.remove('visible'); setTimeout(tick, 200); }, 700);
+            };
+            tick();
+        }
+
+        document.getElementById('btn-race').addEventListener('click', startRace);
+        document.getElementById('btn-reset').addEventListener('click', resetRace);
+        document.getElementById('btn-speed').addEventListener('click', () => {
+            const btn = document.getElementById('btn-speed');
+            if (demoSpeed === 0.25) { demoSpeed = 0.5; btn.textContent = '⏵ SPEED: SLOW (0.5×)'; }
+            else if (demoSpeed === 0.5) { demoSpeed = 1.0; btn.textContent = '⏵⏵ SPEED: REAL (1.0×)'; }
+            else { demoSpeed = 0.25; btn.textContent = '⏵ SPEED: DEMO (0.25×)'; }
+        });
+
+        function onResize() { width = host.clientWidth; height = host.clientHeight; renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); }
+        window.addEventListener('resize', onResize);
+
+        // ═══════════════════════════════════════════════════════
+        // ANIMATION
+        // ═══════════════════════════════════════════════════════
+        const clock = new THREE.Clock();
+
+        function updateTrail(trail, pos) {
+            trail.history.unshift(pos.clone());
+            if (trail.history.length > trail.maxPts) trail.history.length = trail.maxPts;
+            for (let i = 0; i < trail.maxPts; i++) {
+                const p = trail.history[i] || pos;
+                trail.pos[i*3] = p.x; trail.pos[i*3+1] = p.y; trail.pos[i*3+2] = p.z;
+            }
+            trail.geo.attributes.position.needsUpdate = true;
+        }
+
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            // Always-on: helo rotor spin (faster when descending)
+            const rotorSpeed = state === STATE.RACING ? 1.5 : 0.4;
+            [utmHelo, tpoHelo].forEach(h => {
+                if (h.userData.mainRotor) h.userData.mainRotor.rotation.y += rotorSpeed;
+                if (h.userData.mainRotor2) h.userData.mainRotor2.rotation.y += rotorSpeed;
+                if (h.userData.tailRotor) h.userData.tailRotor.rotation.x += rotorSpeed * 2;
+                // Strobe blink
+                if (h.userData.strobe && h.userData.strobeHalo) {
+                    const blink = Math.sin(elapsed * 6) > 0.7 ? 1.0 : 0.15;
+                    h.userData.strobeHalo.material.opacity = 0.5 * blink;
+                    h.userData.strobe.material.color.setHex(blink > 0.5 ? 0xff3030 : 0x300000);
+                }
+            });
+            // Drone rotor spin
+            [utmDrone, tpoDrone].forEach(d => {
+                if (d.visible && d.userData.rotors) d.userData.rotors.forEach(r => { r.rotation.y += 1.6; });
+            });
+
+            // Race logic
+            if (state === STATE.RACING) {
+                const dtScaled = dt * demoSpeed; // demo time
+                raceT += dtScaled;
+
+                // Drone movement
+                // Both drones fly forward at DRONE_SPEED ft/sec until stopped
+                const droneVel = DRONE_SPEED * dtScaled;
+
+                // UTM drone
+                if (!utmState.exploded) {
+                    utmState.x += droneVel;
+                    utmDrone.position.x = utmState.x;
+                }
+                // TPO drone
+                if (!tpoState.stopped) {
+                    tpoState.x += droneVel;
+                    tpoDrone.position.x = tpoState.x;
+                } else if (tpoState.stopX !== null) {
+                    // Decelerate smoothly
+                    const target = tpoState.stopX + 2; // small overshoot during decel
+                    if (tpoState.x < target) {
+                        tpoState.x += droneVel * 0.4;
+                        tpoDrone.position.x = tpoState.x;
+                    }
+                }
+
+                // Helo descent — both descend in parallel
+                const heloVel = HELO_DESCENT * dtScaled;
+                if (utmHelo.position.y > UTM_Y - 1) utmHelo.position.y -= heloVel;
+                if (tpoHelo.position.y > TPO_Y - 1) tpoHelo.position.y -= heloVel;
+
+                // Detection — fires when drone crosses x=DETECT_X
+                if (!utmState.packetSent && utmState.x >= DETECT_X) {
+                    utmState.packetSent = true;
+                    utmState.packetT = 0;
+                    utmLink.line.material.opacity = 0.6;
+                    utmPacket.material.opacity = 1.0;
+                    utmPacket.userData.halo.material.opacity = 0.7;
+                    setLaneStatus('utm', 'AWAITING C2…', 'awaiting');
+                    cloudIcon.userData.pulse.material.opacity = 0.4;
+                }
+                if (!tpoState.packetSent && tpoState.x >= DETECT_X) {
+                    tpoState.packetSent = true;
+                    tpoState.packetT = 0;
+                    tpoLink.line.material.opacity = 0.6;
+                    tpoPacket.material.opacity = 1.0;
+                    tpoPacket.userData.halo.material.opacity = 0.7;
+                    setLaneStatus('tpo', 'PROCESSING…', 'awaiting');
+                    bladeIcon.userData.pulse.material.opacity = 0.5;
+                }
+
+                // Update packets — round-trip animation
+                // TPO: 75ms target ping (0.075 sec demo time)
+                if (utmState.packetSent && !utmState.packetReturned) {
+                    utmState.packetT += dtScaled * 1000; // ms
+                    const progress = Math.min(utmState.packetT / 700, 1.0); // 0..1
+                    // Position packet along line drone -> cloud -> drone
+                    const droneTop = new THREE.Vector3(utmState.x, UTM_Y + 0.3, 0);
+                    const cloudPos = new THREE.Vector3(HELO_X, 50, 0);
+                    let pos;
+                    if (progress < 0.5) {
+                        pos = droneTop.clone().lerp(cloudPos, progress * 2);
+                    } else {
+                        pos = cloudPos.clone().lerp(droneTop, (progress - 0.5) * 2);
+                    }
+                    utmPacket.position.copy(pos);
+                    // Update link
+                    utmLink.geo.setFromPoints([droneTop, cloudPos]);
+                    document.getElementById('utm-ping').textContent = Math.round(utmState.packetT) + 'ms';
+                    document.getElementById('utm-blind').textContent = (Math.round((utmState.packetT / 1000) * DRONE_SPEED * 10) / 10) + ' ft';
+                    if (progress >= 1.0) {
+                        utmState.packetReturned = true;
+                        utmPacket.material.opacity = 0;
+                        utmPacket.userData.halo.material.opacity = 0;
+                    }
+                }
+                if (tpoState.packetSent && !tpoState.packetReturned) {
+                    tpoState.packetT += dtScaled * 1000;
+                    const progress = Math.min(tpoState.packetT / 75, 1.0);
+                    const droneBot = new THREE.Vector3(tpoState.x, TPO_Y - 0.3, 0);
+                    const bladePos = new THREE.Vector3(HELO_X, 1.5, 0);
+                    let pos;
+                    if (progress < 0.5) pos = droneBot.clone().lerp(bladePos, progress * 2);
+                    else pos = bladePos.clone().lerp(droneBot, (progress - 0.5) * 2);
+                    tpoPacket.position.copy(pos);
+                    tpoLink.geo.setFromPoints([droneBot, bladePos]);
+                    document.getElementById('tpo-ping').textContent = Math.round(tpoState.packetT) + 'ms';
+                    document.getElementById('tpo-blind').textContent = (Math.round((tpoState.packetT / 1000) * DRONE_SPEED * 10) / 10) + ' ft';
+                    if (progress >= 1.0) {
+                        tpoState.packetReturned = true;
+                        tpoPacket.material.opacity = 0;
+                        tpoPacket.userData.halo.material.opacity = 0;
+                        // YIELD command received — TPO drone brakes
+                        tpoState.stopped = true;
+                        tpoState.stopX = tpoState.x;
+                        setLaneStatus('tpo', 'STOPPED ✓', 'stopped');
+                        document.getElementById('tpo-panel').classList.add('success');
+                        document.getElementById('tpo-blind').textContent = '6 ft';
+                    }
+                }
+
+                // Update C2 link positions even when packet not active (so links track drones)
+                if (!utmState.packetSent || utmState.packetReturned) {
+                    utmLink.line.material.opacity = Math.max(0, utmLink.line.material.opacity - dt * 1.5);
+                }
+                if (!tpoState.packetSent || tpoState.packetReturned) {
+                    tpoLink.line.material.opacity = Math.max(0, tpoLink.line.material.opacity - dt * 1.5);
+                }
+                cloudIcon.userData.pulse.material.opacity = Math.max(0, cloudIcon.userData.pulse.material.opacity - dt * 0.6);
+                bladeIcon.userData.pulse.material.opacity = Math.max(0, bladeIcon.userData.pulse.material.opacity - dt * 0.6);
+
+                // Trails
+                if (!utmState.exploded) updateTrail(utmTrail, utmDrone.position);
+                if (!tpoState.stopped || tpoState.x < tpoState.stopX + 2) updateTrail(tpoTrail, tpoDrone.position);
+
+                // UTM collision check — drone reaches helo at x=HELO_X with helo at lane altitude
+                const heloAtUtmLane = utmHelo.position.y <= UTM_Y + 1.5;
+                if (!utmState.exploded && utmState.x >= HELO_X - 0.5 && heloAtUtmLane) {
+                    utmState.exploded = true;
+                    utmDrone.visible = false;
+                    utmHelo.visible = false;
+                    // Trigger explosion
+                    utmExplosion.position.set(HELO_X, UTM_Y, 0);
+                    utmExplosion.userData.active = true;
+                    utmExplosion.userData.startT = elapsed;
+                    utmExplosion.userData.particles.forEach(p => { p.material.opacity = 1.0; p.position.set(0, 0, 0); });
+                    setLaneStatus('utm', 'COLLISION ✗', 'collision');
+                    document.getElementById('utm-panel').classList.add('collision');
+                }
+
+                // Show "blind travel exceeded" final value when UTM collides
+                if (utmState.exploded) {
+                    document.getElementById('utm-blind').textContent = '56 ft';
+                    document.getElementById('utm-ping').textContent = '700ms';
+                }
+
+                // Race timer
+                document.getElementById('timer-val').textContent = raceT.toFixed(3) + 's';
+
+                // Race completion check
+                if (utmState.exploded && tpoState.stopped && raceT > 5.5) {
+                    state = STATE.COMPLETE;
+                    setStatusBar('SYS_STATUS: RACE COMPLETE — UTM CLOUD COLLIDED · PECK EDGE YIELDED CLEANLY', '#22c55e');
+                    const btn = document.getElementById('btn-race');
+                    btn.textContent = '▶ RACE AGAIN'; btn.classList.remove('live');
+                }
+            }
+
+            // Update explosion particles
+            if (utmExplosion.userData.active) {
+                const elapsedExp = elapsed - utmExplosion.userData.startT;
+                utmExplosion.userData.particles.forEach(p => {
+                    if (elapsedExp < p.userData.life) {
+                        p.position.x += p.userData.dir.x * p.userData.speed * dt;
+                        p.position.y += p.userData.dir.y * p.userData.speed * dt - dt * 9.8 * elapsedExp * 0.5;
+                        p.position.z += p.userData.dir.z * p.userData.speed * dt;
+                        p.material.opacity = Math.max(0, 1.0 - elapsedExp / p.userData.life);
+                    } else {
+                        p.material.opacity = 0;
+                    }
+                });
+            }
+
+            stars.rotation.y += 0.00006;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    })();
     </script>
 </body>
 </html>

@@ -2,232 +2,971 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TPO | Physical Evasion</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Physical Evasion — 3D</title>
     <style>
         body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #airspace { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); }
-        
-        /* Tactical Control Bar */
-        #controls { height: 60px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 15px; z-index: 1000; }
-        .ctrl-btn { background: transparent; border: 1px solid #334155; color: #cbd5e1; padding: 10px 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
-        .ctrl-btn:hover { background: #1e293b; border-color: #64748b; color: white; }
-        .ctrl-btn.p1-btn { border-color: #ef4444; color: #ef4444; }
-        .ctrl-btn.p1-btn:hover { background: rgba(239, 68, 68, 0.1); }
-        .ctrl-btn.p2-btn { border-color: #a855f7; color: #a855f7; }
-        .ctrl-btn.p2-btn:hover { background: rgba(168, 85, 247, 0.1); }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0a1a2e 0%, #020617 100%); }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
 
-        .drone { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; }
-        .p4 { width: 30px; height: 30px; background-color: #3b82f6; box-shadow: 0 0 25px #3b82f6; transition: background-color 0.2s; }
-        .p4.yielding { background-color: #f97316; box-shadow: 0 0 50px #f97316; z-index: 5; } /* Neon Orange Yield */
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.75); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #06b6d4; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); }
 
-        .p1 { width: 26px; height: 26px; background-color: #ef4444; border-radius: 50%; box-shadow: 0 0 30px #ef4444; z-index: 60; }
-        .p1-shroud { position: absolute; width: 130px; height: 130px; border: 6px dashed rgba(239, 68, 68, 0.95); border-radius: 50%; transform: translate(-50%, -50%); animation: rotate 1.5s linear infinite, strobe 0.1s infinite; }
+        #phase-info { position: absolute; top: 70px; left: 20px; background: rgba(15,23,42,0.85); border: 1px solid #1e293b; border-left: 3px solid #06b6d4; padding: 14px 20px 14px 18px; z-index: 100; max-width: 380px; backdrop-filter: blur(4px); }
+        .phase-num { font-family: 'Courier New', monospace; font-size: 10px; color: #64748b; letter-spacing: 0.3em; margin-bottom: 6px; }
+        .phase-title { font-size: 17px; font-weight: 300; letter-spacing: 0.02em; color: #e2e8f0; line-height: 1.2; }
+        .phase-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; letter-spacing: 0.04em; }
 
-        .p2 { width: 24px; height: 24px; background-color: #a855f7; border-radius: 50%; box-shadow: 0 0 25px #a855f7; z-index: 50; }
-        .p2-shroud { position: absolute; width: 110px; height: 110px; border: 5px dashed rgba(168, 85, 247, 0.85); border-radius: 50%; transform: translate(-50%, -50%); animation: rotate 2s linear infinite; }
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #06b6d4; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #64748b; margin-top: 4px; }
 
-        @keyframes rotate { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
-        @keyframes strobe { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        #count-strip { position: absolute; top: 20px; right: 20px; display: flex; gap: 8px; z-index: 100; }
+        .count-chip { background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 8px 14px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; backdrop-filter: blur(4px); }
+        .count-chip strong { font-weight: bold; margin-left: 6px; }
+        .count-chip.p4 strong { color: #3b82f6; }
+        .count-chip.yield strong { color: #f97316; }
+        .count-chip.p1 strong { color: #ef4444; }
+        .count-chip.p2 strong { color: #a855f7; }
+
+        #legend { position: absolute; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 10px 14px; backdrop-filter: blur(4px); }
+        .legend-row { display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.1em; color: #cbd5e1; }
+        .legend-swatch { width: 12px; height: 12px; border-radius: 50%; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 10px; z-index: 1000; }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 8px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 12px 18px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.p1-btn { border-color: #ef4444; color: #ef4444; }
+        .step-btn.p1-btn:hover { background: rgba(239,68,68,0.15); box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+        .step-btn.p2-btn { border-color: #a855f7; color: #a855f7; }
+        .step-btn.p2-btn:hover { background: rgba(168,85,247,0.15); box-shadow: 0 0 12px rgba(168,85,247,0.4); }
+        .step-btn.reset-btn { border-color: #fbbf24; color: #fbbf24; margin-left: auto; }
+        .step-btn.reset-btn:hover { background: rgba(251,191,36,0.15); }
+
+        @media (max-width: 700px) {
+            #phase-info { max-width: 50%; padding: 10px 14px; }
+            .phase-title { font-size: 14px; }
+            #count-strip, #legend { display: none; }
+            .step-btn { padding: 10px 10px; font-size: 10px; }
+        }
     </style>
 </head>
 <body>
-    <div id="airspace"></div>
-    <div id="controls">
-        <span style="color: #64748b; font-size: 11px; font-weight: bold; margin-right: 10px;">MANUAL OVERRIDE:</span>
-        <button class="ctrl-btn" onclick="spawnCommercial(10, false)">+ Spawn Commercial Traffic</button>
-        <button class="ctrl-btn p1-btn" onclick="spawnPriorityAsset('p1')">Deploy P1 (Life-Critical)</button>
-        <button class="ctrl-btn p2-btn" onclick="spawnPriorityAsset('p2')">Deploy P2 (Sovereign Ghost)</button>
-        <button class="ctrl-btn" style="border-color: #fbbf24; color: #fbbf24; margin-left: auto;" onclick="clearAirspace()">Reset Airspace</button>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
+
+        <div id="status-bar">SYS_STATUS: COMMERCIAL TRAFFIC NOMINAL — 0 PRIORITY ASSETS ACTIVE</div>
+
+        <div id="phase-info">
+            <div class="phase-num">PHYSICAL EVASION · DECONFLICTION DEMO</div>
+            <div class="phase-title">Magnetic yield around priority assets</div>
+            <div class="phase-sub">Click DEPLOY P1 or P2 — watch the airspace clear</div>
+        </div>
+
+        <div id="brand-mark">
+            <div class="brand-title">THE PECKING ORDER</div>
+            <div class="brand-sub">PHYSICAL EVASION</div>
+        </div>
+
+        <div id="count-strip">
+            <div class="count-chip p4">P4 COMMERCIAL <strong id="cnt-p4">30</strong></div>
+            <div class="count-chip yield">YIELDING <strong id="cnt-yield">0</strong></div>
+            <div class="count-chip p1">P1 ACTIVE <strong id="cnt-p1">0</strong></div>
+            <div class="count-chip p2">P2 ACTIVE <strong id="cnt-p2">0</strong></div>
+        </div>
+
+        <div id="legend">
+            <div class="legend-row"><div class="legend-swatch" style="background:#3b82f6"></div>P4 COMMERCIAL — DEFAULT TRAFFIC</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#f97316"></div>YIELDING — REROUTING AROUND PRIORITY</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#ef4444"></div>P1 LIFE-CRITICAL — HARD SHROUD</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#a855f7"></div>P2 SOVEREIGN GHOST — SHROUDED</div>
+        </div>
     </div>
 
+    <div id="controls">
+        <span class="ctrl-label">MANUAL OVERRIDE</span>
+        <button class="step-btn" id="btn-spawn">+ Spawn Commercial Traffic</button>
+        <button class="step-btn p1-btn" id="btn-p1">▲ Deploy P1 (Life-Critical)</button>
+        <button class="step-btn p2-btn" id="btn-p2">◆ Deploy P2 (Sovereign Ghost)</button>
+        <button class="step-btn reset-btn" id="btn-reset">Reset Airspace</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const airspace = document.getElementById('airspace');
-        let priorityAssets = []; 
-        let p4Drones = []; 
-        const YIELD_RADIUS = 280;
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
 
-        function spawnSingleCommercial(isInitial = false) {
-            const w = window.innerWidth || 1000;
-            const h = window.innerHeight || 800;
-            const el = document.createElement('div');
-            el.className = 'drone p4';
-            
-            let startX, startY, endX, endY, x, y;
-            const baseSpeed = 0.8 + Math.random() * 0.5; // Smooth, deliberate speed
-            const side = Math.floor(Math.random() * 4);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        host.appendChild(renderer.domElement);
 
-            // Establish permanent, fixed Entrance and Exit points
-            if (side === 0) { // Top to Bottom
-                startX = Math.random() * w; startY = -50; 
-                endX = Math.random() * w; endY = h + 50; 
-            } else if (side === 1) { // Right to Left
-                startX = w + 50; startY = Math.random() * h; 
-                endX = -50; endY = Math.random() * h; 
-            } else if (side === 2) { // Bottom to Top
-                startX = Math.random() * w; startY = h + 50; 
-                endX = Math.random() * w; endY = -50; 
-            } else { // Left to Right
-                startX = -50; startY = Math.random() * h; 
-                endX = w + 50; endY = Math.random() * h; 
-            }
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a1a2e, 0.0028);
 
-            if (isInitial) {
-                // Pre-populate the screen on load along their vector
-                const progress = Math.random();
-                x = startX + (endX - startX) * progress;
-                y = startY + (endY - startY) * progress;
-            } else {
-                // Spawn continuously off the grid to create transit flow
-                x = startX;
-                y = startY;
-            }
+        // Sky shader
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x020617)}, midColor: {value: new THREE.Color(0x0a1a2e)}, horizonColor: {value: new THREE.Color(0x1d4870)}, groundColor: {value: new THREE.Color(0x000814)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor, groundColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.5, h)); col = mix(col, topColor, smoothstep(0.4, 1.0, h)); }
+                    else { col = mix(horizonColor, groundColor, smoothstep(0.0, -0.4, h)); }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(2000, 32, 16), skyMat));
 
-            // Calculate the ideal vector toward the exit point
-            const dx = endX - x; const dy = endY - y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            const initialVx = (dx / dist) * baseSpeed;
-            const initialVy = (dy / dist) * baseSpeed;
+        // Stars
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(800 * 3);
+        for (let i = 0; i < 800; i++) {
+            const r = 1500, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.7 + 0.05);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xb8d4f0, size: 1.2, sizeAttenuation: false, transparent: true, opacity: 0.6 }));
+        scene.add(stars);
 
-            const d = { 
-                el, x, y, endX, endY, baseSpeed, 
-                vx: initialVx, vy: initialVy 
-            };
-            
-            el.style.left = x + 'px'; 
-            el.style.top = y + 'px';
-            airspace.appendChild(el); 
-            p4Drones.push(d);
+        // Lights
+        const moon = new THREE.DirectionalLight(0xb8c6dc, 0.55); moon.position.set(-80, 100, 50); scene.add(moon);
+        scene.add(new THREE.HemisphereLight(0x4a6fa5, 0x0a1020, 0.35));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+        for (let i = 0; i < 4; i++) {
+            const light = new THREE.PointLight(0x06b6d4, 0.4, 80);
+            light.position.set((Math.random()-0.5)*200, 2, (Math.random()-0.5)*200);
+            scene.add(light);
         }
 
-        function spawnCommercial(amount, isInitial = false) {
-            for (let i = 0; i < amount; i++) {
-                spawnSingleCommercial(isInitial);
+        // Ground + grid
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x081020, roughness: 0.95, emissive: 0x020a16, emissiveIntensity: 0.3 }));
+        ground.rotation.x = -Math.PI / 2; scene.add(ground);
+        const grid = new THREE.GridHelper(800, 40, 0x06b6d4, 0x0c4a5e);
+        grid.position.y = 0.1; grid.material.transparent = true; grid.material.opacity = 0.22; scene.add(grid);
+
+        const camera = new THREE.PerspectiveCamera(45, width/height, 0.5, 3500);
+        camera.position.set(160, 80, 180); camera.lookAt(0, 25, 0);
+
+        function disposeMesh(m) { if (m.geometry) m.geometry.dispose(); if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); } }
+        function disposeGroup(g) { g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); }); if (g.parent) g.parent.remove(g); }
+
+        // ─── City + Airport infrastructure ────────────────────
+        // 30 buildings + 1 airport, scaled for Module 1's airspace (AIRSPACE_W=240, alt 8-50)
+        const buildings = [];
+        const buildingShrouds = [];
+
+        function makeBuilding(x, z, w, h, d) {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1a2436, roughness: 0.7, metalness: 0.3, emissive: 0x050a14, emissiveIntensity: 0.4 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
+            body.position.y = h / 2; g.add(body);
+            // Lit windows for life
+            const winMatWarm = new THREE.MeshBasicMaterial({ color: 0xffd680 });
+            const winMatCool = new THREE.MeshBasicMaterial({ color: 0x88c8ff });
+            const fl = Math.max(2, Math.floor(h / 3));
+            const wpf = Math.max(2, Math.floor(w / 2));
+            for (let f = 0; f < fl; f++) for (let i = 0; i < wpf; i++) {
+                if (Math.random() > 0.55) {
+                    const lit = Math.random() > 0.3 ? winMatWarm : winMatCool;
+                    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.8), lit);
+                    win.position.set(-w/2 + 0.6 + i*(w-1.2)/Math.max(1,wpf-1), 1 + f*(h-2)/Math.max(1,fl-1), d/2 + 0.01);
+                    g.add(win);
+                    const win2 = win.clone(); win2.position.z = -d/2 - 0.01; win2.rotation.y = Math.PI; g.add(win2);
+                }
             }
+            // Tall buildings get an antenna
+            if (h > 22) {
+                const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+                ant.position.y = h + 2; g.add(ant);
+            }
+            g.position.set(x, 0, z);
+            g.userData.bounds = { x, z, w, h, d };
+            scene.add(g);
+
+            // Building shroud — cyan box hugging the structure with a 4-unit buffer all around
+            const shroudW = w + 4, shroudH = h + 6, shroudD = d + 4;
+            const shroud = new THREE.Group();
+            const shrInner = new THREE.Mesh(new THREE.BoxGeometry(shroudW, shroudH, shroudD), new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false }));
+            shrInner.position.y = shroudH / 2 - 3; shroud.add(shrInner);
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(shroudW, shroudH, shroudD)), new THREE.LineBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.45 }));
+            edges.position.y = shroudH / 2 - 3; shroud.add(edges);
+            shroud.position.set(x, 0, z);
+            scene.add(shroud);
+            return { building: g, shroud };
+        }
+
+        function buildCity() {
+            const placements = [];
+            const tryPlace = (x, z, w, d) => {
+                for (const p of placements) if (Math.abs(p.x - x) < (p.w + w)/2 + 4 && Math.abs(p.z - z) < (p.d + d)/2 + 4) return false;
+                placements.push({ x, z, w, d }); return true;
+            };
+            // 30 buildings spread over a wider area than Module 2 since Module 1's airspace is bigger
+            for (let i = 0; i < 30; i++) {
+                for (let attempts = 0; attempts < 30; attempts++) {
+                    const x = (Math.random() - 0.5) * 380;
+                    const z = (Math.random() - 0.5) * 380;
+                    // Keep airport zone clear (north-east quadrant)
+                    if (x > 100 && x < 240 && z < -20 && z > -180) continue;
+                    const w = 8 + Math.random() * 8, d = 8 + Math.random() * 8;
+                    const h = 10 + Math.random() * 22; // 10-32 ft, well below P4 ceiling of 50
+                    if (tryPlace(x, z, w, d)) {
+                        const { building, shroud } = makeBuilding(x, z, w, h, d);
+                        buildings.push(building); buildingShrouds.push(shroud);
+                        break;
+                    }
+                }
+            }
+        }
+
+        function buildingHeightAt(x, z, buffer) {
+            buffer = buffer || 4;
+            let maxH = 0;
+            for (const b of buildings) {
+                const bnd = b.userData.bounds;
+                if (Math.abs(x - bnd.x) < bnd.w/2 + buffer && Math.abs(z - bnd.z) < bnd.d/2 + buffer) {
+                    if (bnd.h > maxH) maxH = bnd.h;
+                }
+            }
+            return maxH;
+        }
+
+        // ─── Airport ──────────────────────────────────────────
+        const airportPos = new THREE.Vector3(170, 0, -100);
+
+        function buildAirport() {
+            const g = new THREE.Group();
+            const runway = new THREE.Mesh(new THREE.BoxGeometry(70, 0.3, 7), new THREE.MeshStandardMaterial({ color: 0x0a0e15, roughness: 0.9, emissive: 0x05080d, emissiveIntensity: 0.3 }));
+            runway.position.set(0, 0.2, 0); g.add(runway);
+            // Runway edge lights
+            for (let i = -32; i <= 32; i += 4) {
+                const light = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffd060 }));
+                light.position.set(i, 0.4, 0); g.add(light);
+            }
+            // Runway threshold lights (green, both ends)
+            for (let side = -1; side <= 1; side += 2) for (let i = -2.5; i <= 2.5; i += 1.5) {
+                const tl = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+                tl.position.set(side * 35, 0.4, i); g.add(tl);
+            }
+            // Terminal building
+            const terminal = new THREE.Mesh(new THREE.BoxGeometry(32, 6, 12), new THREE.MeshStandardMaterial({ color: 0x1f2a3d, roughness: 0.6, emissive: 0x080d18, emissiveIntensity: 0.3 }));
+            terminal.position.set(0, 3, 14); g.add(terminal);
+            // Control tower — cyan glass cab
+            const towerBase = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 14, 12), new THREE.MeshStandardMaterial({ color: 0x1f2a3d, roughness: 0.6 }));
+            towerBase.position.set(-22, 7, 16); g.add(towerBase);
+            const towerCab = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.0, 2.6, 12), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.75, emissive: 0x06b6d4, emissiveIntensity: 0.6 }));
+            towerCab.position.set(-22, 15.5, 16); g.add(towerCab);
+            const towerRoof = new THREE.Mesh(new THREE.ConeGeometry(2.8, 1.0, 12), new THREE.MeshStandardMaterial({ color: 0x0a1525 }));
+            towerRoof.position.set(-22, 17.3, 16); g.add(towerRoof);
+            g.position.copy(airportPos); scene.add(g);
+
+            // Approach corridor cones (red, both runway ends) — visible "no drone zone" volumes
+            for (let dir = -1; dir <= 1; dir += 2) {
+                const corridor = new THREE.Group();
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(20, 70, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+                cone.rotation.z = -dir * Math.PI/2;
+                cone.position.set(dir * 70, 70/2 * Math.sin(0.0524) + 2, 0);
+                cone.rotation.x = dir * 0.0524;
+                corridor.add(cone);
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(20, 0.12, 8, 32), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 }));
+                ring.position.set(dir * 105, 70 * Math.sin(0.0524) + 2, 0); ring.rotation.y = dir * Math.PI/2;
+                corridor.add(ring);
+                corridor.position.copy(airportPos);
+                scene.add(corridor);
+            }
+        }
+
+        // Hard position constraints — runs every frame after movement to keep
+        // drones out of buildings and the airport approach zone.
+        function enforceConstraints(pos, radius) {
+            // Building avoidance: lift altitude above all building shrouds at this XZ
+            const bh = buildingHeightAt(pos.x, pos.z, radius + 4);
+            if (bh > 0) {
+                const minY = bh + 6 + radius + 1;
+                if (pos.y < minY) pos.y = minY;
+            }
+            // Airport avoidance: hard horizontal exclusion zone
+            const dx = pos.x - airportPos.x;
+            const dz = pos.z - airportPos.z;
+            const distAir = Math.sqrt(dx*dx + dz*dz);
+            const airR = 78 + radius;
+            if (distAir < airR && distAir > 0.1) {
+                const ratio = airR / distAir;
+                pos.x = airportPos.x + dx * ratio;
+                pos.z = airportPos.z + dz * ratio;
+            }
+        }
+
+        // ─── Per-drone Shrouds ────────────────────────────────
+        // Each drone gets its own shroud bubble. P4 drones get a small one,
+        // P1/P2 priority assets get bigger ones (colored to match drone class).
+        function makeDroneShroud(color, baseRadius) {
+            const g = new THREE.Group();
+            g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide })));
+            g.add(new THREE.Mesh(new THREE.SphereGeometry(0.85, 24, 18), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false })));
+            g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.0, 1), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.40, wireframe: true, depthWrite: false })));
+            g.scale.setScalar(baseRadius);
+            g.userData.baseRadius = baseRadius;
+            g.userData.color = color;
+            scene.add(g);
+            return g;
+        }
+
+        // Build city + airport once at startup
+        buildCity();
+        buildAirport();
+
+        // ─── Drone factories ──────────────────────────────────
+        function makeP4Drone() {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.4, metalness: 0.7, emissive: 0x3b82f6, emissiveIntensity: 0.4 });
+            g.userData.bodyMat = bodyMat;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.8), bodyMat);
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), new THREE.MeshBasicMaterial({ color: 0x3b82f6 }));
+            eye.position.y = -0.2; g.add(eye);
+            g.userData.eye = eye;
+            const armPositions = [[0.6,0,0.6],[-0.6,0,0.6],[0.6,0,-0.6],[-0.6,0,-0.6]];
+            const rotors = [];
+            armPositions.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.16, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], 0.1, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.03, 0.07), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 }));
+                rotor.position.set(p[0], 0.24, p[2]); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.55, 14), new THREE.MeshBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0], 0.24, p[2]); halo.rotation.x = -Math.PI/2; g.add(halo);
+                g.userData.halos = g.userData.halos || []; g.userData.halos.push(halo);
+            });
+            g.userData.rotors = rotors;
+            return g;
+        }
+
+        function makePriorityDrone(type) {
+            // type: 'p1' (red, Life-Critical) or 'p2' (purple, Sovereign Ghost)
+            const isP1 = type === 'p1';
+            const color = isP1 ? 0xef4444 : 0xa855f7;
+            const emissive = isP1 ? 0xff5050 : 0xc88aff;
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.7, emissive, emissiveIntensity: 0.7 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.4, 1.0), bodyMat);
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), new THREE.MeshBasicMaterial({ color: emissive }));
+            eye.position.y = -0.25; g.add(eye);
+            const armPositions = [[0.7,0,0.7],[-0.7,0,0.7],[0.7,0,-0.7],[-0.7,0,-0.7]];
+            const rotors = [];
+            armPositions.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.18, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], 0.13, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.04, 0.08), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 }));
+                rotor.position.set(p[0], 0.3, p[2]); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 14), new THREE.MeshBasicMaterial({ color: emissive, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0], 0.3, p[2]); halo.rotation.x = -Math.PI/2; g.add(halo);
+            });
+            g.userData.rotors = rotors;
+
+            // Shroud — thicker for P1 (hard), thinner for P2 (ghost)
+            const shroudGroup = new THREE.Group();
+            const outer = new THREE.Mesh(new THREE.SphereGeometry(8, 28, 20), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: isP1 ? 0.10 : 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide }));
+            const mid = new THREE.Mesh(new THREE.SphereGeometry(7, 28, 20), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: isP1 ? 0.16 : 0.10, blending: THREE.AdditiveBlending, depthWrite: false }));
+            const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(8, 1), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: isP1 ? 0.55 : 0.35, wireframe: true, depthWrite: false }));
+            shroudGroup.add(outer, mid, wire);
+            g.add(shroudGroup);
+            g.userData.shroudWire = wire;
+            return g;
+        }
+
+        // ─── Airspace state ───────────────────────────────────
+        const AIRSPACE_W = 240; // half-extent on each axis
+        const AIRSPACE_H_MIN = 8;
+        const AIRSPACE_H_MAX = 50;
+        const YIELD_RADIUS = 28;
+        const PUSH_FORCE = 0.32;
+        const YIELD_COOLDOWN = 75; // frames the orange tint persists after leaving yield zone
+
+        let p4Drones = [];
+        let priorityAssets = [];
+
+        function spawnSingleP4(initial) {
+            const mesh = makeP4Drone();
+            scene.add(mesh);
+
+            // Pick a random side and a random opposite-side endpoint at varying altitude
+            const side = Math.floor(Math.random() * 4);
+            const baseSpeed = 0.09 + Math.random() * 0.06;
+            const altStart = AIRSPACE_H_MIN + Math.random() * (AIRSPACE_H_MAX - AIRSPACE_H_MIN);
+            const altEnd = AIRSPACE_H_MIN + Math.random() * (AIRSPACE_H_MAX - AIRSPACE_H_MIN);
+            let start, end;
+            if (side === 0) { start = new THREE.Vector3(-AIRSPACE_W, altStart, (Math.random()-0.5) * AIRSPACE_W * 1.6); end = new THREE.Vector3(AIRSPACE_W, altEnd, (Math.random()-0.5) * AIRSPACE_W * 1.6); }
+            else if (side === 1) { start = new THREE.Vector3(AIRSPACE_W, altStart, (Math.random()-0.5) * AIRSPACE_W * 1.6); end = new THREE.Vector3(-AIRSPACE_W, altEnd, (Math.random()-0.5) * AIRSPACE_W * 1.6); }
+            else if (side === 2) { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altStart, -AIRSPACE_W); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altEnd, AIRSPACE_W); }
+            else { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altStart, AIRSPACE_W); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altEnd, -AIRSPACE_W); }
+
+            // Push endpoints above any building under them and away from airport approach zones
+            const bhEnd = buildingHeightAt(end.x, end.z, 6);
+            if (bhEnd > 0) end.y = Math.max(end.y, bhEnd + 9);
+            const bhStart = buildingHeightAt(start.x, start.z, 6);
+            if (bhStart > 0) start.y = Math.max(start.y, bhStart + 9);
+            const dToAirportEnd = Math.sqrt((end.x - airportPos.x)**2 + (end.z - airportPos.z)**2);
+            if (dToAirportEnd < 90) {
+                const dx = end.x - airportPos.x, dz = end.z - airportPos.z;
+                const push = (90 - dToAirportEnd) / Math.max(dToAirportEnd, 1);
+                end.x += dx * push; end.z += dz * push;
+            }
+
+            // For initial spawn, distribute along path
+            let pos;
+            if (initial) {
+                const t = Math.random();
+                pos = start.clone().lerp(end, t);
+            } else {
+                pos = start.clone();
+            }
+            // Lift initial position above any building beneath it
+            const bhPos = buildingHeightAt(pos.x, pos.z, 6);
+            if (bhPos > 0 && pos.y < bhPos + 9) pos.y = bhPos + 9;
+            mesh.position.copy(pos);
+            const dir = end.clone().sub(pos).normalize();
+            const vel = dir.multiplyScalar(baseSpeed);
+            mesh.lookAt(end);
+
+            // Trail: 24 points, faint blue when normal, bright amber when yielding
+            const trailMax = 24;
+            const trailGeo = new THREE.BufferGeometry();
+            const trailPosArr = new Float32Array(trailMax * 3);
+            // Pre-fill trail with current position so it doesn't streak from origin
+            for (let k = 0; k < trailMax; k++) { trailPosArr[k*3] = pos.x; trailPosArr[k*3+1] = pos.y; trailPosArr[k*3+2] = pos.z; }
+            trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPosArr, 3));
+            const trailMat = new THREE.PointsMaterial({ color: 0x3b82f6, size: 0.55, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+            const trail = new THREE.Points(trailGeo, trailMat);
+            scene.add(trail);
+
+            // Per-drone shroud — small blue bubble for commercial P4
+            const shroud = makeDroneShroud(0x3b82f6, 2.5);
+
+            p4Drones.push({
+                mesh, end, vel, baseSpeed,
+                yielding: false, yieldingFrames: 0,
+                trail, trailGeo, trailPos: trailPosArr, trailMat, trailMax,
+                trailHistory: [pos.clone()],
+                shroud,
+                // Delivery state machine — 'cruising' | 'descending' | 'hovering' | 'ascending'
+                delivState: 'cruising',
+                delivTimer: 0,
+                delivTargetY: 0,
+                delivCruiseY: 0,
+                package: null,
+            });
+        }
+
+        function spawnCommercial(count, initial) {
+            for (let i = 0; i < count; i++) spawnSingleP4(initial);
         }
 
         function spawnPriorityAsset(type) {
-            const w = window.innerWidth || 1000;
-            const h = window.innerHeight || 800;
-            const el = document.createElement('div');
-            
-            if (type === 'p1') { 
-                el.className = 'drone p1'; 
-                const shroud = document.createElement('div'); 
-                shroud.className = 'p1-shroud'; 
-                el.appendChild(shroud); 
-            } else if (type === 'p2') { 
-                el.className = 'drone p2'; 
-                const shroud = document.createElement('div'); 
-                shroud.className = 'p2-shroud'; 
-                el.appendChild(shroud); 
-            } 
+            const mesh = makePriorityDrone(type);
+            scene.add(mesh);
+            const side = Math.floor(Math.random() * 4);
+            const speed = (type === 'p1') ? 0.45 : 0.32;
+            const alt = 18 + Math.random() * 22;
+            let start, end;
+            if (side === 0) { start = new THREE.Vector3(-AIRSPACE_W - 30, alt, (Math.random()-0.5) * AIRSPACE_W); end = new THREE.Vector3(AIRSPACE_W + 30, alt + (Math.random()-0.5)*8, (Math.random()-0.5) * AIRSPACE_W); }
+            else if (side === 1) { start = new THREE.Vector3(AIRSPACE_W + 30, alt, (Math.random()-0.5) * AIRSPACE_W); end = new THREE.Vector3(-AIRSPACE_W - 30, alt + (Math.random()-0.5)*8, (Math.random()-0.5) * AIRSPACE_W); }
+            else if (side === 2) { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt, -AIRSPACE_W - 30); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt + (Math.random()-0.5)*8, AIRSPACE_W + 30); }
+            else { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt, AIRSPACE_W + 30); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt + (Math.random()-0.5)*8, -AIRSPACE_W - 30); }
 
-            const side = Math.floor(Math.random() * 4); 
-            let x, y, vx, vy;
-            const speedMult = (type === 'p1') ? 3.0 : 2.5; // High speed for visual impact
+            mesh.position.copy(start);
+            const dir = end.clone().sub(start).normalize();
+            const vel = dir.multiplyScalar(speed);
+            mesh.lookAt(end);
 
-            // Spawn firmly off-screen and drive inward
-            if (side === 0) { x = -100; y = Math.random() * h; vx = speedMult; vy = (Math.random() - 0.5) * 1.0; }
-            if (side === 1) { x = w + 100; y = Math.random() * h; vx = -speedMult; vy = (Math.random() - 0.5) * 1.0; }
-            if (side === 2) { x = Math.random() * w; y = -100; vx = (Math.random() - 0.5) * 1.0; vy = speedMult; }
-            if (side === 3) { x = Math.random() * w; y = h + 100; vx = (Math.random() - 0.5) * 1.0; vy = -speedMult; }
+            // Per-priority shroud — bigger, color-matched
+            const isP1 = type === 'p1';
+            const color = isP1 ? 0xef4444 : 0xa855f7;
+            const radius = isP1 ? 10 : 7;
+            const shroud = makeDroneShroud(color, radius);
 
-            el.style.left = x + 'px'; el.style.top = y + 'px'; 
-            airspace.appendChild(el);
-            priorityAssets.push({ el, x, y, vx, vy, type });
+            priorityAssets.push({ mesh, vel, type, shroud });
         }
+
+        // ─── Manned aircraft (P2 — small Cessna-class, lands at airport) ───
+        function makeCessna() {
+            const g = new THREE.Group();
+            const fuselageMat = new THREE.MeshStandardMaterial({ color: 0xe8edf2, roughness: 0.5, metalness: 0.4 });
+            const trimMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, roughness: 0.5 });
+            // Fuselage
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.55, 7, 14), fuselageMat);
+            body.rotation.z = Math.PI/2; g.add(body);
+            // Nose cone
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.3, 12), fuselageMat);
+            nose.position.x = 4.15; nose.rotation.z = -Math.PI/2; g.add(nose);
+            // Cabin (cyan-tint glass)
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.9, 1.2), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.2, metalness: 0.7, transparent: true, opacity: 0.7, emissive: 0x06b6d4, emissiveIntensity: 0.4 }));
+            cabin.position.set(0.7, 0.55, 0); g.add(cabin);
+            // High wing (Cessna 172 signature)
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.14, 11), fuselageMat);
+            wing.position.set(0, 1.05, 0); g.add(wing);
+            // Wing struts
+            for (const zSign of [-1, 1]) {
+                const strut = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.6, 0.08), trimMat);
+                strut.position.set(0, 0.4, zSign * 2.5);
+                strut.rotation.z = zSign * 0.2;
+                g.add(strut);
+            }
+            // Vertical stabilizer + rudder
+            const tailV = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.5, 0.10), fuselageMat);
+            tailV.position.set(-3.0, 0.85, 0); g.add(tailV);
+            // Horizontal stabilizer
+            const tailH = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.10, 3.2), fuselageMat);
+            tailH.position.set(-3.0, 0.15, 0); g.add(tailH);
+            // Trim stripe along fuselage
+            const stripe = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.08, 0.06), trimMat);
+            stripe.position.set(0.2, 0.0, 0.62); g.add(stripe);
+            const stripe2 = stripe.clone(); stripe2.position.z = -0.62; g.add(stripe2);
+            // Propeller
+            const propBlur = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), new THREE.MeshBasicMaterial({ color: 0xaab2bf, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }));
+            propBlur.position.x = 4.85; propBlur.rotation.y = Math.PI/2; g.add(propBlur);
+            const propBlade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.7, 0.05), new THREE.MeshBasicMaterial({ color: 0x222 }));
+            propBlade.position.x = 4.83; g.add(propBlade);
+            g.userData.prop = propBlade;
+            // Landing lights — one on each wing + nose, only visible during approach
+            const navL = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+            navL.position.set(0.5, 1.05, 5.4); g.add(navL);
+            const navR = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 6), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+            navR.position.set(0.5, 1.05, -5.4); g.add(navR);
+            const landingLight = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffd0 }));
+            landingLight.position.set(4.6, 0.05, 0); g.add(landingLight);
+            g.userData.landingLight = landingLight;
+            // Landing gear
+            for (const zSign of [-1, 1]) {
+                const strut = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.7, 0.10), new THREE.MeshStandardMaterial({ color: 0x222 }));
+                strut.position.set(0, -0.7, zSign * 1.0); g.add(strut);
+                const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.18, 12), new THREE.MeshStandardMaterial({ color: 0x111 }));
+                wheel.position.set(0, -1.05, zSign * 1.0); wheel.rotation.x = Math.PI/2; g.add(wheel);
+            }
+            const noseStrut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), new THREE.MeshStandardMaterial({ color: 0x222 }));
+            noseStrut.position.set(2.7, -0.65, 0); g.add(noseStrut);
+            const noseWheel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.14, 12), new THREE.MeshStandardMaterial({ color: 0x111 }));
+            noseWheel.position.set(2.7, -0.95, 0); noseWheel.rotation.x = Math.PI/2; g.add(noseWheel);
+            return g;
+        }
+
+        // Plane state: 'approaching' | 'flaring' | 'rolling' | 'taxi-off'
+        // Approaches alternate from +X and -X, ending at runway midpoint.
+        // Glide slope ~3°. Approach speed ~0.85 ft/frame. Rolling decel after touchdown.
+        let approachDir = 1;  // alternates: +1, -1, +1, -1...
+        function spawnPlane() {
+            const mesh = makeCessna();
+            scene.add(mesh);
+            const dir = approachDir;
+            approachDir *= -1;
+            // Approach starts ~280 ft from runway end at altitude tied to 3° glide slope
+            const runwayY = airportPos.y + 0.7;          // wheels just above runway level
+            const approachStart = new THREE.Vector3(
+                airportPos.x + dir * 320,
+                runwayY + 320 * Math.tan(0.0524),         // ~17 ft up at start
+                airportPos.z
+            );
+            mesh.position.copy(approachStart);
+            // Plane heading: nose points toward runway (i.e. opposite direction of dir)
+            // Cessna model has nose at +X. If approach is from +X, plane should face -X.
+            mesh.rotation.y = (dir > 0) ? Math.PI : 0;
+
+            const speed = 0.85;
+            const vel = new THREE.Vector3(-dir * speed, 0, 0);  // initial vel along -dir on X
+            // Vertical sink rate matches glide slope: vy = -|vx| * tan(3°)
+            vel.y = -Math.abs(vel.x) * Math.tan(0.0524);
+
+            // Plane shroud — medium-large amber bubble (P2 priority)
+            const shroud = makeDroneShroud(0xfbbf24, 14);
+
+            priorityAssets.push({
+                mesh, vel, type: 'plane',
+                planeState: 'approaching',
+                planeDir: dir,
+                planeTimer: 0,
+                runwayY,
+                shroud,
+            });
+        }
+
 
         function clearAirspace() {
-            priorityAssets.forEach(a => a.el.remove());
-            p4Drones.forEach(p => p.el.remove());
-            priorityAssets = [];
+            p4Drones.forEach(d => {
+                disposeGroup(d.mesh);
+                disposeMesh(d.trail); scene.remove(d.trail);
+                if (d.shroud) disposeGroup(d.shroud);
+                if (d.package) { disposeMesh(d.package); scene.remove(d.package); d.package = null; }
+            });
             p4Drones = [];
-            spawnCommercial(30, true); // Reset to base state immediately on grid
+            priorityAssets.forEach(a => {
+                disposeGroup(a.mesh);
+                if (a.shroud) disposeGroup(a.shroud);
+            });
+            priorityAssets = [];
+            spawnCommercial(30, true);
         }
 
-        function update() {
-            const w = window.innerWidth || 1000;
-            const h = window.innerHeight || 800;
+        // ─── Bind controls ────────────────────────────────────
+        const statusEl = document.getElementById('status-bar');
+        const cntP4 = document.getElementById('cnt-p4');
+        const cntYield = document.getElementById('cnt-yield');
+        const cntP1 = document.getElementById('cnt-p1');
+        const cntP2 = document.getElementById('cnt-p2');
 
-            // Handle Priority Assets
+        function setStatus(msg, color) {
+            statusEl.textContent = msg;
+            statusEl.style.color = color || '#06b6d4';
+            statusEl.style.borderColor = (color || '#06b6d4') + '66';
+        }
+
+        document.getElementById('btn-spawn').addEventListener('click', () => {
+            spawnCommercial(10, false);
+            setStatus('SYS_STATUS: +10 P4 COMMERCIAL DRONES INSERTED', '#3b82f6');
+        });
+        document.getElementById('btn-p1').addEventListener('click', () => {
+            spawnPriorityAsset('p1');
+            setStatus('SYS_STATUS: P1 LIFE-CRITICAL DEPLOYED — HARD SHROUD ACTIVE — ALL TRAFFIC YIELDING', '#ef4444');
+        });
+        document.getElementById('btn-p2').addEventListener('click', () => {
+            spawnPriorityAsset('p2');
+            setStatus('SYS_STATUS: P2 SOVEREIGN GHOST DEPLOYED — STEALTH SHROUD ACTIVE', '#a855f7');
+        });
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            clearAirspace();
+            setStatus('SYS_STATUS: AIRSPACE RESET — 30 P4 NOMINAL', '#fbbf24');
+            setTimeout(() => setStatus('SYS_STATUS: COMMERCIAL TRAFFIC NOMINAL — 0 PRIORITY ASSETS ACTIVE'), 1800);
+        });
+
+        function onResize() {
+            width = host.clientWidth; height = host.clientHeight;
+            renderer.setSize(width, height);
+            camera.aspect = width / height; camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', onResize);
+
+        // Initial population
+        spawnCommercial(30, true);
+        spawnPlane();
+
+        // ─── Animation loop ───────────────────────────────────
+        const clock = new THREE.Clock();
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            // Update priority assets — drones (p1/p2) and planes (manned A/C landing)
+            let needSpawnPlane = true;
             for (let i = priorityAssets.length - 1; i >= 0; i--) {
-                const a = priorityAssets[i]; 
-                a.x += a.vx; a.y += a.vy; 
-                a.el.style.left = a.x + 'px'; a.el.style.top = a.y + 'px';
-                
-                // Remove if they fly too far off-screen
-                if (a.x < -300 || a.x > w + 300 || a.y < -300 || a.y > h + 300) { 
-                    a.el.remove(); priorityAssets.splice(i, 1); 
+                const a = priorityAssets[i];
+
+                if (a.type === 'plane') {
+                    needSpawnPlane = false;
+                    // ─── Plane landing state machine ───
+                    if (a.planeState === 'approaching') {
+                        a.mesh.position.add(a.vel);
+                        // Spin prop for visual effect (full spin at speed)
+                        if (a.mesh.userData.prop) a.mesh.userData.prop.rotation.x += 1.6;
+                        // Light up landing lamp
+                        if (a.mesh.userData.landingLight) a.mesh.userData.landingLight.material.color.setHex(0xffffd0);
+                        // Touchdown: when reaches runway X-coordinate near runway end & low altitude
+                        const xFromAirport = a.mesh.position.x - airportPos.x;
+                        const reachedFlare = (a.planeDir > 0 && xFromAirport < 35) || (a.planeDir < 0 && xFromAirport > -35);
+                        if (reachedFlare && a.mesh.position.y < a.runwayY + 1.2) {
+                            a.planeState = 'flaring';
+                            a.planeTimer = 0;
+                        }
+                    } else if (a.planeState === 'flaring') {
+                        // Level out & cushion the landing — kill vertical velocity, slow horizontal
+                        a.vel.y = THREE.MathUtils.lerp(a.vel.y, 0, 0.18);
+                        a.mesh.position.add(a.vel);
+                        a.mesh.position.y = THREE.MathUtils.lerp(a.mesh.position.y, a.runwayY, 0.12);
+                        if (a.mesh.userData.prop) a.mesh.userData.prop.rotation.x += 1.6;
+                        a.planeTimer += dt;
+                        if (a.planeTimer > 0.6) {
+                            a.planeState = 'rolling';
+                            a.mesh.position.y = a.runwayY;
+                            a.vel.y = 0;
+                        }
+                    } else if (a.planeState === 'rolling') {
+                        // Decelerate along the runway
+                        a.vel.x = THREE.MathUtils.lerp(a.vel.x, 0, 0.04);
+                        a.mesh.position.add(a.vel);
+                        a.mesh.position.y = a.runwayY;
+                        if (a.mesh.userData.prop) a.mesh.userData.prop.rotation.x += 0.9;
+                        // Once nearly stopped near the runway end, taxi off
+                        if (Math.abs(a.vel.x) < 0.05) {
+                            a.planeState = 'taxi-off';
+                            a.planeTimer = 0;
+                            // Begin taxiing toward terminal (Z=14 area, north of runway)
+                            a.vel.set(0, 0, 0.18);
+                            // Turn nose toward terminal — face +Z
+                            a.targetYaw = -Math.PI/2;
+                            // Dim landing light during taxi
+                            if (a.mesh.userData.landingLight) a.mesh.userData.landingLight.material.color.setHex(0x554a30);
+                        }
+                    } else if (a.planeState === 'taxi-off') {
+                        // Smooth turn to face +Z, then drift toward terminal
+                        if (a.targetYaw !== undefined) {
+                            const cur = a.mesh.rotation.y;
+                            // Shortest rotation to target
+                            let diff = a.targetYaw - cur;
+                            while (diff > Math.PI) diff -= 2*Math.PI;
+                            while (diff < -Math.PI) diff += 2*Math.PI;
+                            a.mesh.rotation.y += diff * 0.05;
+                        }
+                        a.mesh.position.add(a.vel);
+                        a.mesh.position.y = a.runwayY;
+                        if (a.mesh.userData.prop) a.mesh.userData.prop.rotation.x += 0.5;
+                        a.planeTimer += dt;
+                        // After ~6 sec on taxiway, despawn so a fresh approach can spawn
+                        if (a.planeTimer > 6.0 || a.mesh.position.z > airportPos.z + 16) {
+                            disposeGroup(a.mesh);
+                            if (a.shroud) disposeGroup(a.shroud);
+                            priorityAssets.splice(i, 1);
+                            needSpawnPlane = true;
+                            continue;
+                        }
+                    }
+                    // Plane shroud follow + breathe (no airport-zone constraint — they belong there)
+                    if (a.shroud) {
+                        a.shroud.position.copy(a.mesh.position);
+                        const breathe = 1 + Math.sin(elapsed * 1.4 + i) * 0.03;
+                        a.shroud.scale.setScalar(a.shroud.userData.baseRadius * breathe);
+                        a.shroud.children[2].rotation.y += 0.005;
+                        a.shroud.children[2].rotation.x += 0.003;
+                    }
+                    continue;
+                }
+
+                // ─── P1 / P2 priority drone (existing behavior) ───
+                a.mesh.position.add(a.vel);
+                enforceConstraints(a.mesh.position, a.type === 'p1' ? 10 : 7);
+                a.mesh.userData.rotors.forEach(r => { r.rotation.y += 1.5; });
+                if (a.mesh.userData.shroudWire) {
+                    a.mesh.userData.shroudWire.rotation.y += 0.008;
+                    a.mesh.userData.shroudWire.rotation.x += 0.005;
+                }
+                if (a.shroud) {
+                    a.shroud.position.copy(a.mesh.position);
+                    const breathe = 1 + Math.sin(elapsed * 1.4 + i) * 0.03;
+                    a.shroud.scale.setScalar(a.shroud.userData.baseRadius * breathe);
+                    a.shroud.children[2].rotation.y += 0.005;
+                    a.shroud.children[2].rotation.x += 0.003;
+                }
+                if (Math.abs(a.mesh.position.x) > AIRSPACE_W + 80 || Math.abs(a.mesh.position.z) > AIRSPACE_W + 80) {
+                    disposeGroup(a.mesh);
+                    if (a.shroud) disposeGroup(a.shroud);
+                    priorityAssets.splice(i, 1);
                 }
             }
+            // Always keep one plane in rotation
+            if (needSpawnPlane) spawnPlane();
 
-            // Handle Commercial Drones (Strict Waypoint Rerouting)
+            // Update P4 commercial — yield logic
+            let yieldingCount = 0;
             for (let i = p4Drones.length - 1; i >= 0; i--) {
-                let d = p4Drones[i];
+                const d = p4Drones[i];
                 let beingRepelled = false;
-                let pushX = 0;
-                let pushY = 0;
-                
-                // Repelling Math
+                let push = new THREE.Vector3();
+
                 priorityAssets.forEach(a => {
-                    const dx = d.x - a.x; const dy = d.y - a.y; 
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    if (dist < YIELD_RADIUS && dist > 0) { 
-                        beingRepelled = true; 
-                        const force = (YIELD_RADIUS - dist) / YIELD_RADIUS; 
-                        pushX += (dx / dist) * force * 12.0; // Very hard magnetic push
-                        pushY += (dy / dist) * force * 12.0;
+                    const diff = d.mesh.position.clone().sub(a.mesh.position);
+                    const dist = diff.length();
+                    if (dist < YIELD_RADIUS && dist > 0.1) {
+                        beingRepelled = true;
+                        const force = (YIELD_RADIUS - dist) / YIELD_RADIUS;
+                        push.add(diff.normalize().multiplyScalar(force * PUSH_FORCE));
                     }
                 });
-                
-                if (beingRepelled) {
-                    d.el.classList.add('yielding');
-                    // Instant Brake & Slide: Zero out flight velocity, apply only the physical push
-                    d.vx = 0; 
-                    d.vy = 0;
-                    d.x += pushX;
-                    d.y += pushY;
-                } else {
-                    d.el.classList.remove('yielding');
-                    
-                    // Strict Recalculation: Point directly from CURRENT position to ORIGINAL exit point
-                    const toEndX = d.endX - d.x;
-                    const toEndY = d.endY - d.y;
-                    const distToEnd = Math.sqrt(toEndX*toEndX + toEndY*toEndY);
-                    
-                    if (distToEnd > 5) {
-                        const targetVx = (toEndX / distToEnd) * d.baseSpeed;
-                        const targetVy = (toEndY / distToEnd) * d.baseSpeed;
-                        
-                        // Snappy course correction without jitter
-                        d.vx += (targetVx - d.vx) * 0.2;
-                        d.vy += (targetVy - d.vy) * 0.2;
-                    }
-                    
-                    d.x += d.vx; 
-                    d.y += d.vy;
-                }
-                
-                d.el.style.left = d.x + 'px'; 
-                d.el.style.top = d.y + 'px';
 
-                // Check distance to final exit point to gracefully despawn and replace
-                const distFromEnd = Math.sqrt(Math.pow(d.x - d.endX, 2) + Math.pow(d.y - d.endY, 2));
-                if (distFromEnd < 20 || d.x < -200 || d.x > w + 200 || d.y < -200 || d.y > h + 200) {
-                    d.el.remove();
+                if (beingRepelled) {
+                    yieldingCount++;
+                    d.yielding = true;
+                    d.yieldingFrames = YIELD_COOLDOWN;
+                    // Abort any in-progress delivery — yield takes precedence
+                    if (d.delivState !== 'cruising') {
+                        d.delivState = 'cruising';
+                        d.delivTimer = 0;
+                        // Drop the package immediately if we have one (let physics finish)
+                    }
+                    // Hard brake + slide
+                    d.mesh.position.add(push);
+                    d.vel.set(0, 0, 0);
+                    // Tint orange
+                    d.mesh.userData.bodyMat.color.setHex(0xf97316);
+                    d.mesh.userData.bodyMat.emissive.setHex(0xf97316);
+                    d.mesh.userData.bodyMat.emissiveIntensity = 0.9;
+                    if (d.mesh.userData.eye) d.mesh.userData.eye.material.color.setHex(0xfbbf24);
+                    d.mesh.userData.halos.forEach(h => h.material.color.setHex(0xf97316));
+                } else {
+                    // Cooldown — keep tint for a few frames
+                    if (d.yieldingFrames > 0) {
+                        d.yieldingFrames--;
+                        if (d.yieldingFrames === 0) {
+                            d.yielding = false;
+                            d.mesh.userData.bodyMat.color.setHex(0x1e3a8a);
+                            d.mesh.userData.bodyMat.emissive.setHex(0x3b82f6);
+                            d.mesh.userData.bodyMat.emissiveIntensity = 0.4;
+                            if (d.mesh.userData.eye) d.mesh.userData.eye.material.color.setHex(0x3b82f6);
+                            d.mesh.userData.halos.forEach(h => h.material.color.setHex(0x3b82f6));
+                        }
+                    }
+                    // ─── Delivery state machine (cruising → descending → hovering → ascending) ───
+                    if (d.delivState === 'cruising') {
+                        // Recompute heading toward original endpoint (existing logic)
+                        const toEnd = d.end.clone().sub(d.mesh.position);
+                        const distToEnd = toEnd.length();
+                        if (distToEnd > 5) {
+                            const target = toEnd.normalize().multiplyScalar(d.baseSpeed);
+                            d.vel.lerp(target, 0.15);
+                        }
+                        d.mesh.position.add(d.vel);
+                        if (d.vel.lengthSq() > 0.001) {
+                            d.mesh.lookAt(d.mesh.position.clone().add(d.vel));
+                        }
+                        // Probabilistic delivery trigger — small chance per frame
+                        if (Math.random() < 0.0010) {
+                            d.delivState = 'descending';
+                            d.delivCruiseY = d.mesh.position.y;
+                            // Descent target: rooftop if there's a building below, else 2.5ft above ground
+                            const groundCheck = buildingHeightAt(d.mesh.position.x, d.mesh.position.z, 4);
+                            d.delivTargetY = groundCheck > 0 ? groundCheck + 1.2 : 2.5;
+                        }
+                    } else if (d.delivState === 'descending') {
+                        d.mesh.position.y = THREE.MathUtils.lerp(d.mesh.position.y, d.delivTargetY, 0.05);
+                        d.mesh.rotation.set(0, d.mesh.rotation.y, 0);
+                        if (Math.abs(d.mesh.position.y - d.delivTargetY) < 0.4) {
+                            d.delivState = 'hovering';
+                            d.delivTimer = 0;
+                        }
+                    } else if (d.delivState === 'hovering') {
+                        d.mesh.position.y = d.delivTargetY + Math.sin(elapsed * 6) * 0.08;
+                        d.delivTimer += dt;
+                        if (d.delivTimer > 0.8 && !d.package) {
+                            const pkg = new THREE.Mesh(
+                                new THREE.BoxGeometry(0.5, 0.4, 0.5),
+                                new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.5, roughness: 0.5 })
+                            );
+                            pkg.position.copy(d.mesh.position);
+                            pkg.position.y -= 0.5;
+                            pkg.userData.vy = 0;
+                            pkg.userData.born = elapsed;
+                            scene.add(pkg);
+                            d.package = pkg;
+                        }
+                        if (d.delivTimer > 1.8) {
+                            d.delivState = 'ascending';
+                        }
+                    } else if (d.delivState === 'ascending') {
+                        d.mesh.position.y = THREE.MathUtils.lerp(d.mesh.position.y, d.delivCruiseY, 0.05);
+                        if (Math.abs(d.mesh.position.y - d.delivCruiseY) < 0.4) {
+                            d.delivState = 'cruising';
+                        }
+                    }
+                }
+                // Update package physics (gravity-fall + fade-out, regardless of yield state)
+                if (d.package) {
+                    const pkg = d.package;
+                    const age = elapsed - pkg.userData.born;
+                    const groundY = (() => {
+                        const bh = buildingHeightAt(pkg.position.x, pkg.position.z, 1);
+                        return bh > 0 ? bh + 0.25 : 0.25;
+                    })();
+                    if (pkg.position.y > groundY) {
+                        pkg.userData.vy -= dt * 8;
+                        pkg.position.y += pkg.userData.vy * dt;
+                        pkg.rotation.x += 0.06;
+                        pkg.rotation.z += 0.04;
+                        if (pkg.position.y < groundY) { pkg.position.y = groundY; pkg.userData.vy = 0; }
+                    }
+                    if (age > 4.0) {
+                        pkg.material.transparent = true;
+                        pkg.material.opacity = Math.max(0, 1 - (age - 4.0) * 1.5);
+                    }
+                    if (age > 4.7) {
+                        disposeMesh(pkg); scene.remove(pkg); d.package = null;
+                    }
+                }
+                d.mesh.userData.rotors.forEach(r => { r.rotation.y += 1.5; });
+
+                // Hard constraints — push P4 out of any building shroud or airport zone
+                enforceConstraints(d.mesh.position, 2.5);
+
+                // Sync shroud to drone with subtle breathing pulse
+                if (d.shroud) {
+                    d.shroud.position.copy(d.mesh.position);
+                    const breathe = 1 + Math.sin(elapsed * 1.6 + i * 0.4) * 0.04;
+                    d.shroud.scale.setScalar(d.shroud.userData.baseRadius * breathe);
+                    d.shroud.children[2].rotation.y += 0.004;
+                    // Tint shroud orange when this drone is yielding
+                    const wire = d.shroud.children[2];
+                    const targetColor = (d.yielding || d.yieldingFrames > 0) ? 0xf97316 : d.shroud.userData.color;
+                    wire.material.color.setHex(targetColor);
+                    d.shroud.children[0].material.color.setHex(targetColor);
+                    d.shroud.children[1].material.color.setHex(targetColor);
+                }
+
+                // ── Trail update ──
+                d.trailHistory.unshift(d.mesh.position.clone());
+                if (d.trailHistory.length > d.trailMax) d.trailHistory.length = d.trailMax;
+                for (let j = 0; j < d.trailMax; j++) {
+                    const pt = d.trailHistory[j] || d.mesh.position;
+                    d.trailPos[j*3] = pt.x;
+                    d.trailPos[j*3+1] = pt.y;
+                    d.trailPos[j*3+2] = pt.z;
+                }
+                d.trailGeo.attributes.position.needsUpdate = true;
+                if (d.yielding || d.yieldingFrames > 0) {
+                    // Bright amber trail during the divergence
+                    d.trailMat.color.setHex(0xf97316);
+                    d.trailMat.opacity = THREE.MathUtils.lerp(d.trailMat.opacity, 0.85, 0.15);
+                    d.trailMat.size = 0.7;
+                } else {
+                    // Faint blue trail during normal flight
+                    d.trailMat.color.setHex(0x3b82f6);
+                    d.trailMat.opacity = THREE.MathUtils.lerp(d.trailMat.opacity, 0.2, 0.08);
+                    d.trailMat.size = 0.5;
+                }
+
+                // Despawn at endpoint or far off-grid; replace
+                const distFromEnd = d.mesh.position.distanceTo(d.end);
+                if (distFromEnd < 6 || Math.abs(d.mesh.position.x) > AIRSPACE_W + 60 || Math.abs(d.mesh.position.z) > AIRSPACE_W + 60) {
+                    disposeGroup(d.mesh);
+                    disposeMesh(d.trail); scene.remove(d.trail);
+                    if (d.shroud) disposeGroup(d.shroud);
+                    if (d.package) { disposeMesh(d.package); scene.remove(d.package); d.package = null; }
                     p4Drones.splice(i, 1);
-                    spawnSingleCommercial(false); // Instantly replace off-grid
+                    spawnSingleP4(false);
                 }
             }
-            
-            requestAnimationFrame(update);
-        }
 
-        // Start with traffic on screen immediately
-        window.onload = () => { 
-            spawnCommercial(30, true); 
-            update(); 
-        };
+            // Update HUD counters
+            cntP4.textContent = p4Drones.length;
+            cntYield.textContent = yieldingCount;
+            cntP1.textContent = priorityAssets.filter(a => a.type === 'p1').length;
+            cntP2.textContent = priorityAssets.filter(a => a.type === 'p2').length;
+
+            // Slow cinematic camera orbit
+            const orbitT = elapsed * 0.018;
+            const camR = 230;
+            camera.position.lerp(new THREE.Vector3(Math.cos(orbitT) * camR, 80, Math.sin(orbitT) * camR), 0.018);
+            camera.position.y += Math.sin(elapsed * 0.5) * 0.15;
+            camera.lookAt(0, 25, 0);
+
+            stars.rotation.y += 0.00008;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    })();
     </script>
 </body>
 </html>

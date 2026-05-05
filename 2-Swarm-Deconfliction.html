@@ -2,246 +2,760 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TPO | Swarm Control - Multi-Directional Entry</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Swarm Deconfliction — 3D + LCR Lane</title>
     <style>
         body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #airspace { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); }
-        
-        #priority-key { position: absolute; top: 20px; right: 20px; width: 260px; background: rgba(15, 23, 42, 0.9); border: 1px solid #06b6d4; padding: 20px; border-radius: 4px; z-index: 1000; font-size: 13px; }
-        .key-item { display: flex; align-items: center; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
-        .key-dot { width: 20px; height: 20px; border-radius: 50%; margin-right: 15px; }
-        
-        /* Tactical Controls */
-        #controls { height: 60px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 1000; }
-        .ctrl-btn { background: transparent; border: 1px solid #334155; color: #cbd5e1; padding: 10px 20px; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
-        .ctrl-btn:hover { background: #1e293b; color: white; }
-        
-        /* High-Contrast P3 & Reset */
-        .p3-btn { border-color: #facc15; color: #facc15; } .p3-btn:hover { background: rgba(250, 204, 21, 0.1); }
-        .p2-btn { border-color: #a855f7; color: #a855f7; } .p2-btn:hover { background: rgba(168, 85, 247, 0.1); }
-        .p1-btn { border-color: #ef4444; color: #ef4444; } .p1-btn:hover { background: rgba(239, 68, 68, 0.1); }
-        .reset-btn { border-color: #94a3b8; color: #94a3b8; } .reset-btn:hover { background: rgba(148, 163, 184, 0.1); }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0a1a2e 0%, #020617 100%); }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
 
-        .drone { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; pointer-events: none; transition: background-color 0.2s; }
-        
-        .p1 { background-color: #ef4444; box-shadow: 0 0 25px #ef4444; width: 28px; height: 28px; z-index: 100; } 
-        .p2 { background-color: #a855f7; box-shadow: 0 0 20px #a855f7; width: 24px; height: 24px; z-index: 80; }  
-        .p3 { background-color: #facc15; box-shadow: 0 0 15px #facc15; width: 20px; height: 20px; z-index: 60; }  
-        .p4 { background-color: #3b82f6; box-shadow: 0 0 12px #3b82f6; width: 16px; height: 16px; z-index: 40; }  
-        .p5 { background-color: #94a3b8; box-shadow: 0 0 10px #94a3b8; width: 12px; height: 12px; z-index: 20; }  
-        
-        /* Yielding is Neon Orange */
-        .yielding { background-color: #f97316 !important; box-shadow: 0 0 40px #f97316 !important; z-index: 90;}
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.75); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #06b6d4; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); }
 
-        .shroud { position: absolute; width: 120px; height: 120px; border: 5px dashed rgba(239, 68, 68, 0.8); border-radius: 50%; transform: translate(-50%, -50%); animation: rotate 2.5s linear infinite; }
-        .shroud-p2 { border-color: rgba(168, 85, 247, 0.8); }
-        @keyframes rotate { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+        #phase-info { position: absolute; top: 70px; left: 20px; background: rgba(15,23,42,0.85); border: 1px solid #1e293b; border-left: 3px solid #06b6d4; padding: 14px 20px 14px 18px; z-index: 100; max-width: 380px; backdrop-filter: blur(4px); }
+        .phase-num { font-family: 'Courier New', monospace; font-size: 10px; color: #64748b; letter-spacing: 0.3em; margin-bottom: 6px; }
+        .phase-title { font-size: 17px; font-weight: 300; letter-spacing: 0.02em; color: #e2e8f0; line-height: 1.2; }
+        .phase-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; letter-spacing: 0.04em; }
+
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #06b6d4; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #64748b; margin-top: 4px; }
+
+        #count-strip { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; }
+        .count-chip { background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 8px 14px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; backdrop-filter: blur(4px); display: flex; justify-content: space-between; gap: 14px; min-width: 130px; }
+        .count-chip strong { font-weight: bold; }
+        .count-chip.swarm strong { color: #3b82f6; }
+        .count-chip.yield strong { color: #f97316; }
+        .count-chip.p1 strong { color: #ef4444; }
+        .count-chip.p2 strong { color: #a855f7; }
+        .count-chip.p3 strong { color: #facc15; }
+        .count-chip.lcr { transition: all 0.3s; }
+        .count-chip.lcr.on { border-color: #fbbf24; box-shadow: 0 0 12px rgba(251,191,36,0.3); }
+        .count-chip.lcr strong { color: #64748b; transition: color 0.3s; }
+        .count-chip.lcr.on strong { color: #fbbf24; }
+
+        #legend { position: absolute; bottom: 20px; left: 20px; z-index: 100; background: rgba(0,0,0,0.7); border: 1px solid #06b6d4; padding: 12px 16px; backdrop-filter: blur(4px); min-width: 230px; }
+        .legend-title { font-family: 'Courier New', monospace; font-size: 10px; color: #06b6d4; letter-spacing: 0.25em; font-weight: bold; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #1e293b; }
+        .legend-row { display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.1em; color: #cbd5e1; padding: 3px 0; }
+        .legend-swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .legend-row strong { width: 22px; color: #94a3b8; font-size: 9px; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 1000; flex-wrap: wrap; }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 4px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 11px 14px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.p3-btn { border-color: #facc15; color: #facc15; }
+        .step-btn.p3-btn:hover { background: rgba(250,204,21,0.15); box-shadow: 0 0 12px rgba(250,204,21,0.4); }
+        .step-btn.p2-btn { border-color: #a855f7; color: #a855f7; }
+        .step-btn.p2-btn:hover { background: rgba(168,85,247,0.15); box-shadow: 0 0 12px rgba(168,85,247,0.4); }
+        .step-btn.p1-btn { border-color: #ef4444; color: #ef4444; }
+        .step-btn.p1-btn:hover { background: rgba(239,68,68,0.15); box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+        .step-btn.lcr-btn { border-color: #fbbf24; color: #fbbf24; margin-left: 8px; transition: all 0.3s; }
+        .step-btn.lcr-btn:hover { background: rgba(251,191,36,0.15); }
+        .step-btn.lcr-btn.on { background: rgba(251,191,36,0.22); box-shadow: 0 0 14px rgba(251,191,36,0.5); border-color: #fbbf24; color: #fef3c7; }
+        .step-btn.reset-btn { border-color: #94a3b8; color: #94a3b8; margin-left: auto; }
+        .step-btn.reset-btn:hover { background: rgba(148,163,184,0.15); }
+
+        @media (max-width: 900px) {
+            #phase-info { max-width: 50%; padding: 10px 14px; }
+            .phase-title { font-size: 14px; }
+            #count-strip { display: none; }
+            .step-btn { padding: 10px 8px; font-size: 10px; }
+        }
+        @media (max-width: 600px) { #legend { display: none; } }
     </style>
 </head>
 <body>
-    <div id="airspace">
-        <div id="priority-key">
-            <div style="color: #06b6d4; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #1e293b; padding-bottom: 8px;">PECK HIERARCHY</div>
-            <div class="key-item"><div class="key-dot" style="background:#ef4444"></div> P1: Life Critical</div>
-            <div class="key-item"><div class="key-dot" style="background:#a855f7"></div> P2: Sovereign (Shrouded)</div>
-            <div class="key-item"><div class="key-dot" style="background:#facc15"></div> P3: Public Safety</div>
-            <div class="key-item"><div class="key-dot" style="background:#3b82f6"></div> P4: Commercial</div>
-            <div class="key-item"><div class="key-dot" style="background:#94a3b8"></div> P5: Hobbyist</div>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
+
+        <div id="status-bar">SYS_STATUS: SWARM TRAFFIC NOMINAL — 0 PRIORITY ASSETS ACTIVE</div>
+
+        <div id="phase-info">
+            <div class="phase-num">SWARM DECONFLICTION · HIERARCHY ENFORCEMENT</div>
+            <div class="phase-title">Lower priorities yield to higher</div>
+            <div class="phase-sub">Toggle LCR LANE to reserve 400-500′ AGL for P1 missions only</div>
+        </div>
+
+        <div id="brand-mark">
+            <div class="brand-title">THE PECKING ORDER</div>
+            <div class="brand-sub">SWARM CONTROL · LCR LANE</div>
+        </div>
+
+        <div id="count-strip">
+            <div class="count-chip swarm">SWARM <strong id="cnt-swarm">35</strong></div>
+            <div class="count-chip yield">YIELDING <strong id="cnt-yield">0</strong></div>
+            <div class="count-chip p3">P3 ACTIVE <strong id="cnt-p3">0</strong></div>
+            <div class="count-chip p2">P2 ACTIVE <strong id="cnt-p2">0</strong></div>
+            <div class="count-chip p1">P1 ACTIVE <strong id="cnt-p1">0</strong></div>
+            <div class="count-chip lcr" id="chip-lcr">LCR 400-500′ <strong id="cnt-lcr">OFF</strong></div>
+        </div>
+
+        <div id="legend">
+            <div class="legend-title">PECK HIERARCHY</div>
+            <div class="legend-row"><strong>P1</strong><div class="legend-swatch" style="background:#ef4444"></div>LIFE CRITICAL</div>
+            <div class="legend-row"><strong>P2</strong><div class="legend-swatch" style="background:#a855f7"></div>SOVEREIGN GHOST</div>
+            <div class="legend-row"><strong>P3</strong><div class="legend-swatch" style="background:#facc15"></div>PUBLIC SAFETY</div>
+            <div class="legend-row"><strong>P4</strong><div class="legend-swatch" style="background:#3b82f6"></div>COMMERCIAL</div>
+            <div class="legend-row"><strong>P5</strong><div class="legend-swatch" style="background:#94a3b8"></div>HOBBYIST</div>
         </div>
     </div>
-    
+
     <div id="controls">
-        <button class="ctrl-btn p3-btn" onclick="spawnPriorityAsset('p3')">Launch P3 (Public Safety)</button>
-        <button class="ctrl-btn p2-btn" onclick="spawnPriorityAsset('p2')">Launch P2 (Ghost/Shrouded)</button>
-        <button class="ctrl-btn p1-btn" onclick="spawnPriorityAsset('p1')">Launch P1 (Life-Critical)</button>
-        <button class="ctrl-btn reset-btn" style="margin-left: auto;" onclick="resetSwarm()">Reset Grid</button>
+        <span class="ctrl-label">DEPLOY</span>
+        <button class="step-btn p3-btn" id="btn-p3">▼ P3 Public Safety</button>
+        <button class="step-btn p2-btn" id="btn-p2">◆ P2 Sovereign Ghost</button>
+        <button class="step-btn p1-btn" id="btn-p1">▲ P1 Life-Critical</button>
+        <button class="step-btn lcr-btn" id="btn-lcr">⫻ LCR LANE: OFF</button>
+        <button class="step-btn reset-btn" id="btn-reset">Reset Grid</button>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const airspace = document.getElementById('airspace');
-        let swarm = []; 
-        let priorityAssets = []; 
-        const YIELD_RADIUS = 240;
-        const MAX_SWARM_COUNT = 35; 
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
 
-        function spawnSingleDrone(isInitial = false) {
-            const w = window.innerWidth || 1000;
-            const h = window.innerHeight || 800;
-            const type = Math.random() > 0.4 ? 'p4' : 'p5';
-            const el = document.createElement('div'); 
-            el.className = `drone ${type}`;
-            
-            let startX, startY, endX, endY, x, y;
-            const baseSpeed = 0.8 + Math.random() * 0.5; // Smooth, deliberate speed
-            const side = Math.floor(Math.random() * 4);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        host.appendChild(renderer.domElement);
 
-            // Establish permanent, fixed Entrance and Exit points
-            if (side === 0) { // Top to Bottom
-                startX = Math.random() * w; startY = -50; 
-                endX = Math.random() * w; endY = h + 50; 
-            } else if (side === 1) { // Right to Left
-                startX = w + 50; startY = Math.random() * h; 
-                endX = -50; endY = Math.random() * h; 
-            } else if (side === 2) { // Bottom to Top
-                startX = Math.random() * w; startY = h + 50; 
-                endX = Math.random() * w; endY = -50; 
-            } else { // Left to Right
-                startX = -50; startY = Math.random() * h; 
-                endX = w + 50; endY = Math.random() * h; 
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a1a2e, 0.0028);
+
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x020617)}, midColor: {value: new THREE.Color(0x0a1a2e)}, horizonColor: {value: new THREE.Color(0x1d4870)}, groundColor: {value: new THREE.Color(0x000814)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor, groundColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.5, h)); col = mix(col, topColor, smoothstep(0.4, 1.0, h)); }
+                    else { col = mix(horizonColor, groundColor, smoothstep(0.0, -0.4, h)); }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(2000, 32, 16), skyMat));
+
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(800 * 3);
+        for (let i = 0; i < 800; i++) {
+            const r = 1500, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.7 + 0.05);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xb8d4f0, size: 1.2, sizeAttenuation: false, transparent: true, opacity: 0.6 }));
+        scene.add(stars);
+
+        const moon = new THREE.DirectionalLight(0xb8c6dc, 0.55); moon.position.set(-80, 100, 50); scene.add(moon);
+        scene.add(new THREE.HemisphereLight(0x4a6fa5, 0x0a1020, 0.35));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+        for (let i = 0; i < 4; i++) {
+            const light = new THREE.PointLight(0x06b6d4, 0.4, 80);
+            light.position.set((Math.random()-0.5)*200, 2, (Math.random()-0.5)*200);
+            scene.add(light);
+        }
+
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x081020, roughness: 0.95, emissive: 0x020a16, emissiveIntensity: 0.3 }));
+        ground.rotation.x = -Math.PI / 2; scene.add(ground);
+        const grid = new THREE.GridHelper(800, 40, 0x06b6d4, 0x0c4a5e);
+        grid.position.y = 0.1; grid.material.transparent = true; grid.material.opacity = 0.22; scene.add(grid);
+
+        const camera = new THREE.PerspectiveCamera(45, width/height, 0.5, 3500);
+        camera.position.set(180, 95, 200); camera.lookAt(0, 28, 0);
+
+        function disposeMesh(m) { if (m.geometry) m.geometry.dispose(); if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); } }
+        function disposeGroup(g) { g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); }); if (g.parent) g.parent.remove(g); }
+
+        // ─── Constants — 1 unit ≈ 10 feet AGL ─────────────────
+        const AIRSPACE_W = 240;
+        const SWARM_ALT_MIN = 6;
+        const SWARM_ALT_MAX = 38;     // ceiling when LCR enabled (380')
+        const SWARM_ALT_FREE = 50;    // ceiling when LCR disabled
+        const LCR_LANE_MIN = 40;      // 400' AGL
+        const LCR_LANE_MAX = 50;      // 500' AGL
+        const YIELD_RADIUS = 26;
+        const PUSH_FORCE = 0.30;
+        const YIELD_COOLDOWN = 75;
+        const SWARM_TARGET = 35;
+        const BUILDING_MAX_HEIGHT = 26;
+
+        const PRIORITY_SPECS = {
+            1: { color: 0xef4444, emissive: 0xff5050, dim: 0xb91c1c, baseScale: 1.0,  shroudR: 9.0, shroudOpacity: 0.16, wireOpacity: 0.55 },
+            2: { color: 0xa855f7, emissive: 0xc88aff, dim: 0x6b21a8, baseScale: 0.95, shroudR: 8.0, shroudOpacity: 0.10, wireOpacity: 0.40 },
+            3: { color: 0xfacc15, emissive: 0xfde68a, dim: 0x854d0e, baseScale: 0.85, shroudR: 7.0, shroudOpacity: 0.08, wireOpacity: 0.32 },
+            4: { color: 0x3b82f6, emissive: 0x60a5fa, dim: 0x1e3a8a, baseScale: 0.75, shroudR: 2.5, shroudOpacity: 0.14, wireOpacity: 0.40 },
+            5: { color: 0x94a3b8, emissive: 0xcbd5e1, dim: 0x475569, baseScale: 0.6,  shroudR: 2.0, shroudOpacity: 0.12, wireOpacity: 0.36 },
+        };
+
+        function makeDrone(type) {
+            const spec = PRIORITY_SPECS[type];
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: spec.dim, roughness: 0.4, metalness: 0.7, emissive: spec.color, emissiveIntensity: type <= 3 ? 0.65 : 0.45 });
+            g.userData.bodyMat = bodyMat; g.userData.priority = type; g.userData.spec = spec;
+            const bodySize = type <= 3 ? 1.0 : (type === 4 ? 0.8 : 0.65);
+            const body = new THREE.Mesh(new THREE.BoxGeometry(bodySize, bodySize * 0.32, bodySize), bodyMat);
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(bodySize * 0.18, 10, 8), new THREE.MeshBasicMaterial({ color: spec.emissive }));
+            eye.position.y = -bodySize * 0.25; g.add(eye); g.userData.eye = eye;
+            const armR = bodySize * 0.75;
+            const armPositions = [[armR,0,armR],[-armR,0,armR],[armR,0,-armR],[-armR,0,-armR]];
+            const rotors = []; const halos = [];
+            armPositions.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(bodySize*0.16, bodySize*0.16, bodySize*0.18, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], bodySize*0.12, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(bodySize*1.2, 0.03, 0.07), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 }));
+                rotor.position.set(p[0], bodySize*0.28, p[2]); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(bodySize*0.5, bodySize*0.7, 14), new THREE.MeshBasicMaterial({ color: spec.color, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0], bodySize*0.28, p[2]); halo.rotation.x = -Math.PI/2; g.add(halo); halos.push(halo);
+            });
+            g.userData.rotors = rotors; g.userData.halos = halos;
+            if (spec.shroudR > 0) {
+                const shroudGroup = new THREE.Group();
+                const outer = new THREE.Mesh(new THREE.SphereGeometry(spec.shroudR, 28, 20), new THREE.MeshBasicMaterial({ color: spec.color, transparent: true, opacity: spec.shroudOpacity * 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide }));
+                const mid = new THREE.Mesh(new THREE.SphereGeometry(spec.shroudR * 0.88, 28, 20), new THREE.MeshBasicMaterial({ color: spec.color, transparent: true, opacity: spec.shroudOpacity, blending: THREE.AdditiveBlending, depthWrite: false }));
+                const wire = new THREE.Mesh(new THREE.IcosahedronGeometry(spec.shroudR, 1), new THREE.MeshBasicMaterial({ color: spec.color, transparent: true, opacity: spec.wireOpacity, wireframe: true, depthWrite: false }));
+                shroudGroup.add(outer, mid, wire); g.add(shroudGroup);
+                g.userData.shroudWire = wire;
             }
+            return g;
+        }
 
-            if (isInitial) {
-                // If initializing, drop them randomly along their assigned flight path
-                const progress = Math.random();
-                x = startX + (endX - startX) * progress;
-                y = startY + (endY - startY) * progress;
-            } else {
-                x = startX;
-                y = startY;
+        // ─── Buildings ────────────────────────────────────────
+        const buildings = [];
+        const buildingShrouds = [];
+
+        function makeBuilding(x, z, w, h, d) {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1a2436, roughness: 0.7, metalness: 0.3, emissive: 0x050a14, emissiveIntensity: 0.4 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
+            body.position.y = h / 2; g.add(body);
+            const winMat = new THREE.MeshBasicMaterial({ color: 0xffd680 });
+            const winMatCool = new THREE.MeshBasicMaterial({ color: 0x88c8ff });
+            const fl = Math.max(2, Math.floor(h / 3));
+            const wpf = Math.max(2, Math.floor(w / 2));
+            for (let f = 0; f < fl; f++) for (let i = 0; i < wpf; i++) {
+                if (Math.random() > 0.55) {
+                    const lit = Math.random() > 0.3 ? winMat : winMatCool;
+                    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.8), lit);
+                    win.position.set(-w/2 + 0.6 + i*(w-1.2)/Math.max(1,wpf-1), 1 + f*(h-2)/Math.max(1,fl-1), d/2 + 0.01);
+                    g.add(win);
+                    const win2 = win.clone(); win2.position.z = -d/2 - 0.01; win2.rotation.y = Math.PI; g.add(win2);
+                }
             }
+            if (h > 18) {
+                const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+                ant.position.y = h + 2; g.add(ant);
+            }
+            g.position.set(x, 0, z);
+            g.userData.bounds = { x, z, w, h, d };
+            scene.add(g);
 
-            // Calculate initial vector strictly toward exit
-            const dx = endX - x; const dy = endY - y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            const initialVx = (dx / dist) * baseSpeed;
-            const initialVy = (dy / dist) * baseSpeed;
+            const shroudW = w + 4, shroudH = h + 6, shroudD = d + 4;
+            const shroud = new THREE.Group();
+            const shrInner = new THREE.Mesh(new THREE.BoxGeometry(shroudW, shroudH, shroudD), new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false }));
+            shrInner.position.y = shroudH / 2 - 3; shroud.add(shrInner);
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(shroudW, shroudH, shroudD)), new THREE.LineBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.45 }));
+            edges.position.y = shroudH / 2 - 3; shroud.add(edges);
+            shroud.position.set(x, 0, z);
+            scene.add(shroud);
+            return { building: g, shroud };
+        }
 
-            const d = { 
-                el, type: parseInt(type.replace('p', '')), 
-                x, y, endX, endY, baseSpeed, 
-                vx: initialVx, vy: initialVy 
+        function buildCity() {
+            const placements = [];
+            const tryPlace = (x, z, w, d) => {
+                for (const p of placements) if (Math.abs(p.x - x) < (p.w + w)/2 + 4 && Math.abs(p.z - z) < (p.d + d)/2 + 4) return false;
+                placements.push({ x, z, w, d }); return true;
             };
-            
-            el.style.left = x + 'px'; 
-            el.style.top = y + 'px';
-            airspace.appendChild(el); 
-            swarm.push(d);
+            for (let i = 0; i < 10; i++) {
+                for (let attempts = 0; attempts < 30; attempts++) {
+                    const x = (Math.random() - 0.5) * 280;
+                    const z = (Math.random() - 0.5) * 280;
+                    if (x > 80 && x < 210 && z < 0 && z > -140) continue; // keep airport zone clear
+                    const w = 8 + Math.random() * 8, d = 8 + Math.random() * 8;
+                    const h = 10 + Math.random() * (BUILDING_MAX_HEIGHT - 10);
+                    if (tryPlace(x, z, w, d)) {
+                        const { building, shroud } = makeBuilding(x, z, w, h, d);
+                        buildings.push(building); buildingShrouds.push(shroud);
+                        break;
+                    }
+                }
+            }
+        }
+
+        function buildingHeightAt(x, z, buffer) {
+            buffer = buffer || 4;
+            let maxH = 0;
+            for (const b of buildings) {
+                const bnd = b.userData.bounds;
+                if (Math.abs(x - bnd.x) < bnd.w/2 + buffer && Math.abs(z - bnd.z) < bnd.d/2 + buffer) {
+                    if (bnd.h > maxH) maxH = bnd.h;
+                }
+            }
+            return maxH;
+        }
+
+        // Effective collision radius for any drone — uses the shroud envelope.
+        // Now that P4/P5 also have shrouds, every operator's collision footprint matches
+        // its visible shroud (Module 9's model: the shroud IS the protection envelope).
+        function getDroneRadius(type) {
+            return PRIORITY_SPECS[type].shroudR + 0.5;
+        }
+
+        // Hard position constraints — runs every frame after movement to guarantee
+        // no drone ever overlaps a building, the airport zone, or violates the LCR band.
+        function enforceConstraints(pos, radius, opts) {
+            opts = opts || {};
+            // Building avoidance: lift altitude above all building shrouds at this XZ
+            const bh = buildingHeightAt(pos.x, pos.z, radius + 4);
+            if (bh > 0) {
+                const minY = bh + 6 + radius + 1;
+                if (pos.y < minY) pos.y = minY;
+            }
+            // Airport avoidance: hard horizontal exclusion zone
+            const dx = pos.x - airportPos.x;
+            const dz = pos.z - airportPos.z;
+            const distAir = Math.sqrt(dx*dx + dz*dz);
+            const airR = 78 + radius;
+            if (distAir < airR && distAir > 0.1) {
+                const ratio = airR / distAir;
+                pos.x = airportPos.x + dx * ratio;
+                pos.z = airportPos.z + dz * ratio;
+            }
+            // LCR ceiling: clamp swarm below 400'
+            if (opts.swarmCeiling && lcrLaneEnabled && pos.y > SWARM_ALT_MAX - 1) {
+                pos.y = SWARM_ALT_MAX - 1;
+            }
+            // LCR band clamp: keep P1-in-LCR within 400-500'
+            if (opts.lcrBand) {
+                if (pos.y < LCR_LANE_MIN + 1) pos.y = LCR_LANE_MIN + 1;
+                if (pos.y > LCR_LANE_MAX - 1) pos.y = LCR_LANE_MAX - 1;
+            }
+        }
+
+        // Inter-drone separation force — guarantees no two operators come within
+        // (radiusA + radiusB) of each other. Iterates all drones (swarm + priority).
+        function computeSeparationPush(targetMesh, targetType, allDrones) {
+            const push = new THREE.Vector3();
+            const myRadius = getDroneRadius(targetType);
+            for (const o of allDrones) {
+                if (o.mesh === targetMesh) continue;
+                const otherRadius = getDroneRadius(o.type);
+                const minDist = myRadius + otherRadius + 0.5;
+                const diff = targetMesh.position.clone().sub(o.mesh.position);
+                const dist = diff.length();
+                if (dist < minDist && dist > 0.1) {
+                    const force = (minDist - dist) / minDist;
+                    push.add(diff.normalize().multiplyScalar(force * 0.45));
+                }
+            }
+            return push;
+        }
+
+        // ─── Airport ──────────────────────────────────────────
+        const airportPos = new THREE.Vector3(140, 0, -70);
+
+        function buildAirport() {
+            const g = new THREE.Group();
+            const runway = new THREE.Mesh(new THREE.BoxGeometry(70, 0.3, 7), new THREE.MeshStandardMaterial({ color: 0x0a0e15, roughness: 0.9, emissive: 0x05080d, emissiveIntensity: 0.3 }));
+            runway.position.set(0, 0.2, 0); g.add(runway);
+            for (let i = -32; i <= 32; i += 4) {
+                const light = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffd060 }));
+                light.position.set(i, 0.4, 0); g.add(light);
+            }
+            for (let side = -1; side <= 1; side += 2) for (let i = -2.5; i <= 2.5; i += 1.5) {
+                const tl = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+                tl.position.set(side * 35, 0.4, i); g.add(tl);
+            }
+            const terminal = new THREE.Mesh(new THREE.BoxGeometry(32, 6, 12), new THREE.MeshStandardMaterial({ color: 0x1f2a3d, roughness: 0.6, emissive: 0x080d18, emissiveIntensity: 0.3 }));
+            terminal.position.set(0, 3, 14); g.add(terminal);
+            const towerBase = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.8, 14, 12), new THREE.MeshStandardMaterial({ color: 0x1f2a3d, roughness: 0.6 }));
+            towerBase.position.set(-22, 7, 16); g.add(towerBase);
+            const towerCab = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.0, 2.6, 12), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.75, emissive: 0x06b6d4, emissiveIntensity: 0.6 }));
+            towerCab.position.set(-22, 15.5, 16); g.add(towerCab);
+            const towerRoof = new THREE.Mesh(new THREE.ConeGeometry(2.8, 1.0, 12), new THREE.MeshStandardMaterial({ color: 0x0a1525 }));
+            towerRoof.position.set(-22, 17.3, 16); g.add(towerRoof);
+            g.position.copy(airportPos); scene.add(g);
+
+            for (let dir = -1; dir <= 1; dir += 2) {
+                const corridor = new THREE.Group();
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(20, 70, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+                cone.rotation.z = -dir * Math.PI/2;
+                cone.position.set(dir * 70, 70/2 * Math.sin(0.0524) + 2, 0);
+                cone.rotation.x = dir * 0.0524;
+                corridor.add(cone);
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(20, 0.12, 8, 32), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.45 }));
+                ring.position.set(dir * 105, 70 * Math.sin(0.0524) + 2, 0); ring.rotation.y = dir * Math.PI/2;
+                corridor.add(ring);
+                corridor.position.copy(airportPos);
+                scene.add(corridor);
+            }
+        }
+
+        // ─── LCR Lane ─────────────────────────────────────────
+        let lcrLaneEnabled = false;
+        let lcrLaneGroup = null;
+
+        function buildLCRLane() {
+            const g = new THREE.Group();
+            const w = 480;
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, w), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+            floor.rotation.x = -Math.PI/2; floor.position.y = LCR_LANE_MIN; g.add(floor);
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, w), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.04, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+            ceiling.rotation.x = -Math.PI/2; ceiling.position.y = LCR_LANE_MAX; g.add(ceiling);
+            const gridFloor = new THREE.GridHelper(w, 24, 0xfbbf24, 0x854d0e);
+            gridFloor.position.y = LCR_LANE_MIN + 0.05;
+            gridFloor.material.transparent = true; gridFloor.material.opacity = 0.45;
+            g.add(gridFloor);
+            const gridCeiling = new THREE.GridHelper(w, 24, 0xfbbf24, 0x854d0e);
+            gridCeiling.position.y = LCR_LANE_MAX - 0.05;
+            gridCeiling.material.transparent = true; gridCeiling.material.opacity = 0.25;
+            g.add(gridCeiling);
+            const wire = new THREE.Mesh(new THREE.BoxGeometry(w, LCR_LANE_MAX - LCR_LANE_MIN, w), new THREE.MeshBasicMaterial({ color: 0xfbbf24, wireframe: true, transparent: true, opacity: 0.18, depthWrite: false }));
+            wire.position.y = (LCR_LANE_MIN + LCR_LANE_MAX) / 2;
+            g.add(wire);
+            g.visible = false;
+            scene.add(g);
+            return g;
+        }
+
+        function setStatus(msg, color) {
+            const statusEl = document.getElementById('status-bar');
+            statusEl.textContent = msg;
+            statusEl.style.color = color || '#06b6d4';
+            statusEl.style.borderColor = (color || '#06b6d4') + '66';
+        }
+
+        function setLCRLane(enabled) {
+            lcrLaneEnabled = enabled;
+            if (lcrLaneGroup) lcrLaneGroup.visible = enabled;
+            const btn = document.getElementById('btn-lcr');
+            const chip = document.getElementById('chip-lcr');
+            const cnt = document.getElementById('cnt-lcr');
+            if (enabled) {
+                btn.classList.add('on'); btn.textContent = '⫻ LCR LANE: ON';
+                chip.classList.add('on'); cnt.textContent = 'ON';
+                setStatus('SYS_STATUS: LCR LANE 400-500′ AGL RESERVED — SWARM CONFINED BELOW 400′', '#fbbf24');
+            } else {
+                btn.classList.remove('on'); btn.textContent = '⫻ LCR LANE: OFF';
+                chip.classList.remove('on'); cnt.textContent = 'OFF';
+                setStatus('SYS_STATUS: LCR LANE INACTIVE — STANDARD MIXED AIRSPACE', '#94a3b8');
+            }
+        }
+
+        // Build static infrastructure
+        buildCity();
+        buildAirport();
+        lcrLaneGroup = buildLCRLane();
+
+        // ─── Swarm + priority state ───────────────────────────
+        let swarm = [];
+        let priorityAssets = [];
+
+        function spawnSingleSwarm(initial) {
+            const type = Math.random() > 0.4 ? 4 : 5;
+            const mesh = makeDrone(type);
+            scene.add(mesh);
+
+            const side = Math.floor(Math.random() * 4);
+            const baseSpeed = (type === 5 ? 0.07 : 0.09) + Math.random() * 0.06;
+            const altCeiling = lcrLaneEnabled ? SWARM_ALT_MAX : SWARM_ALT_FREE;
+            const altStart = SWARM_ALT_MIN + Math.random() * (altCeiling - SWARM_ALT_MIN);
+            const altEnd = SWARM_ALT_MIN + Math.random() * (altCeiling - SWARM_ALT_MIN);
+            let start, end;
+            if (side === 0) { start = new THREE.Vector3(-AIRSPACE_W, altStart, (Math.random()-0.5) * AIRSPACE_W * 1.6); end = new THREE.Vector3(AIRSPACE_W, altEnd, (Math.random()-0.5) * AIRSPACE_W * 1.6); }
+            else if (side === 1) { start = new THREE.Vector3(AIRSPACE_W, altStart, (Math.random()-0.5) * AIRSPACE_W * 1.6); end = new THREE.Vector3(-AIRSPACE_W, altEnd, (Math.random()-0.5) * AIRSPACE_W * 1.6); }
+            else if (side === 2) { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altStart, -AIRSPACE_W); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altEnd, AIRSPACE_W); }
+            else { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altStart, AIRSPACE_W); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W * 1.6, altEnd, -AIRSPACE_W); }
+
+            const bhEnd = buildingHeightAt(end.x, end.z, 6);
+            if (bhEnd > 0) end.y = Math.max(end.y, bhEnd + 9);
+            const bhStart = buildingHeightAt(start.x, start.z, 6);
+            if (bhStart > 0) start.y = Math.max(start.y, bhStart + 9);
+            // Push endpoint away from airport approach corridor
+            const distToAirport = Math.sqrt((end.x - airportPos.x)**2 + (end.z - airportPos.z)**2);
+            if (distToAirport < 60) {
+                const dx = end.x - airportPos.x, dz = end.z - airportPos.z;
+                const push = (60 - distToAirport) / Math.max(distToAirport, 1);
+                end.x += dx * push; end.z += dz * push;
+            }
+
+            let pos;
+            if (initial) { const t = Math.random(); pos = start.clone().lerp(end, t); }
+            else { pos = start.clone(); }
+            const bhPos = buildingHeightAt(pos.x, pos.z, 6);
+            if (bhPos > 0 && pos.y < bhPos + 9) pos.y = bhPos + 9;
+            mesh.position.copy(pos);
+            const dir = end.clone().sub(pos).normalize();
+            const vel = dir.multiplyScalar(baseSpeed);
+            mesh.lookAt(end);
+
+            const trailMax = type === 5 ? 18 : 24;
+            const trailGeo = new THREE.BufferGeometry();
+            const trailPosArr = new Float32Array(trailMax * 3);
+            for (let k = 0; k < trailMax; k++) { trailPosArr[k*3] = pos.x; trailPosArr[k*3+1] = pos.y; trailPosArr[k*3+2] = pos.z; }
+            trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPosArr, 3));
+            const trailMat = new THREE.PointsMaterial({ color: PRIORITY_SPECS[type].color, size: type === 5 ? 0.4 : 0.55, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+            const trail = new THREE.Points(trailGeo, trailMat);
+            scene.add(trail);
+
+            swarm.push({ mesh, end, vel, baseSpeed, type, yielding: false, yieldingFrames: 0, trail, trailGeo, trailPos: trailPosArr, trailMat, trailMax, trailHistory: [pos.clone()] });
         }
 
         function initSwarm() {
-            for (let i = 0; i < MAX_SWARM_COUNT; i++) {
-                spawnSingleDrone(true);
-            }
+            for (let i = 0; i < SWARM_TARGET; i++) spawnSingleSwarm(true);
         }
 
-        function spawnPriorityAsset(typeStr) {
-            const w = window.innerWidth || 1000;
-            const h = window.innerHeight || 800;
-            const container = document.createElement('div'); 
-            container.style.position = 'absolute';
-            
-            const typeInt = parseInt(typeStr.replace('p', ''));
-            if (typeInt === 1 || typeInt === 2) {
-                const shroud = document.createElement('div'); 
-                shroud.className = typeInt === 1 ? 'shroud' : 'shroud shroud-p2'; 
-                container.appendChild(shroud);
+        function spawnPriorityAsset(type) {
+            const mesh = makeDrone(type);
+            scene.add(mesh);
+            const side = Math.floor(Math.random() * 4);
+            const speed = type === 1 ? 0.45 : (type === 2 ? 0.32 : 0.40);
+            // P1 uses LCR Lane when reserved (400-500'); P2/P3 fly mid-band
+            let alt;
+            if (type === 1 && lcrLaneEnabled) {
+                alt = LCR_LANE_MIN + 2 + Math.random() * (LCR_LANE_MAX - LCR_LANE_MIN - 4);
+            } else {
+                alt = 16 + Math.random() * 22;
             }
-            const dot = document.createElement('div'); 
-            dot.className = `drone ${typeStr}`; 
-            container.appendChild(dot);
-            
-            const side = Math.floor(Math.random() * 4); 
-            let x, y, vx, vy; 
-            const speed = 2.8; 
-            
-            if (side === 0) { x = -100; y = Math.random() * h; vx = speed; vy = 0; } 
-            else if (side === 1) { x = w + 100; y = Math.random() * h; vx = -speed; vy = 0; } 
-            else if (side === 2) { x = Math.random() * w; y = -100; vx = 0; vy = speed; } 
-            else { x = Math.random() * w; y = h + 100; vx = 0; vy = -speed; } 
+            let start, end;
+            if (side === 0) { start = new THREE.Vector3(-AIRSPACE_W - 30, alt, (Math.random()-0.5) * AIRSPACE_W); end = new THREE.Vector3(AIRSPACE_W + 30, alt + (Math.random()-0.5)*4, (Math.random()-0.5) * AIRSPACE_W); }
+            else if (side === 1) { start = new THREE.Vector3(AIRSPACE_W + 30, alt, (Math.random()-0.5) * AIRSPACE_W); end = new THREE.Vector3(-AIRSPACE_W - 30, alt + (Math.random()-0.5)*4, (Math.random()-0.5) * AIRSPACE_W); }
+            else if (side === 2) { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt, -AIRSPACE_W - 30); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt + (Math.random()-0.5)*4, AIRSPACE_W + 30); }
+            else { start = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt, AIRSPACE_W + 30); end = new THREE.Vector3((Math.random()-0.5) * AIRSPACE_W, alt + (Math.random()-0.5)*4, -AIRSPACE_W - 30); }
 
-            container.style.left = x + 'px';
-            container.style.top = y + 'px';
+            mesh.position.copy(start);
+            const dir = end.clone().sub(start).normalize();
+            const vel = dir.multiplyScalar(speed);
+            mesh.lookAt(end);
 
-            airspace.appendChild(container); 
-            priorityAssets.push({ el: container, type: typeInt, x, y, vx, vy });
+            // Priority trail — colored to match priority class, always visible
+            const trailMax = 32;
+            const trailGeo = new THREE.BufferGeometry();
+            const trailPosArr = new Float32Array(trailMax * 3);
+            for (let k = 0; k < trailMax; k++) { trailPosArr[k*3] = start.x; trailPosArr[k*3+1] = start.y; trailPosArr[k*3+2] = start.z; }
+            trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPosArr, 3));
+            const trailMat = new THREE.PointsMaterial({ color: PRIORITY_SPECS[type].color, size: 0.7, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+            const trail = new THREE.Points(trailGeo, trailMat);
+            scene.add(trail);
+
+            priorityAssets.push({ mesh, vel, type, isLCR: (type === 1 && lcrLaneEnabled), trail, trailGeo, trailPos: trailPosArr, trailMat, trailMax, trailHistory: [start.clone()] });
         }
 
         function resetSwarm() {
-            swarm.forEach(d => d.el.remove());
-            priorityAssets.forEach(a => a.el.remove());
-            swarm = [];
-            priorityAssets = [];
+            swarm.forEach(d => { disposeGroup(d.mesh); disposeMesh(d.trail); scene.remove(d.trail); }); swarm = [];
+            priorityAssets.forEach(a => { disposeGroup(a.mesh); if (a.trail) { disposeMesh(a.trail); scene.remove(a.trail); } }); priorityAssets = [];
             initSwarm();
         }
 
-        function update() {
-            const w = window.innerWidth || 1000;
-            const h = window.innerHeight || 800;
+        const cntSwarm = document.getElementById('cnt-swarm');
+        const cntYield = document.getElementById('cnt-yield');
+        const cntP1 = document.getElementById('cnt-p1');
+        const cntP2 = document.getElementById('cnt-p2');
+        const cntP3 = document.getElementById('cnt-p3');
 
-            // Handle Priority Assets
-            priorityAssets.forEach((a, i) => {
-                a.x += a.vx; a.y += a.vy; 
-                a.el.style.left = a.x + 'px'; a.el.style.top = a.y + 'px';
-                if (a.x > w + 200 || a.x < -200 || a.y > h + 200 || a.y < -200) { 
-                    a.el.remove(); priorityAssets.splice(i, 1); 
+        document.getElementById('btn-p3').addEventListener('click', () => {
+            spawnPriorityAsset(3);
+            setStatus('SYS_STATUS: P3 PUBLIC SAFETY DEPLOYED — P4 + P5 YIELDING', '#facc15');
+        });
+        document.getElementById('btn-p2').addEventListener('click', () => {
+            spawnPriorityAsset(2);
+            setStatus('SYS_STATUS: P2 SOVEREIGN GHOST DEPLOYED — P3 + P4 + P5 YIELDING', '#a855f7');
+        });
+        document.getElementById('btn-p1').addEventListener('click', () => {
+            spawnPriorityAsset(1);
+            const msg = lcrLaneEnabled ? 'SYS_STATUS: P1 LCR DEPLOYED IN RESERVED LANE — UNCONTESTED EXPRESS PATH' : 'SYS_STATUS: P1 LIFE-CRITICAL DEPLOYED — ALL LOWER PRIORITIES YIELDING';
+            setStatus(msg, '#ef4444');
+        });
+        document.getElementById('btn-lcr').addEventListener('click', () => { setLCRLane(!lcrLaneEnabled); });
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            resetSwarm();
+            const msg = lcrLaneEnabled ? 'SYS_STATUS: GRID RESET — LCR LANE ACTIVE — 35 SWARM CONFINED BELOW 400′' : 'SYS_STATUS: GRID RESET — 35 SWARM NOMINAL';
+            setStatus(msg, '#fbbf24');
+            setTimeout(() => {
+                if (!lcrLaneEnabled) setStatus('SYS_STATUS: SWARM TRAFFIC NOMINAL — 0 PRIORITY ASSETS ACTIVE');
+                else setStatus('SYS_STATUS: LCR LANE ACTIVE — SWARM CONFINED BELOW 400′', '#fbbf24');
+            }, 2200);
+        });
+
+        function onResize() {
+            width = host.clientWidth; height = host.clientHeight;
+            renderer.setSize(width, height);
+            camera.aspect = width / height; camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', onResize);
+
+        initSwarm();
+
+        const clock = new THREE.Clock();
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            for (let i = priorityAssets.length - 1; i >= 0; i--) {
+                const a = priorityAssets[i];
+                // Apply velocity
+                a.mesh.position.add(a.vel);
+                // Small separation push from any other drone
+                const allDrones = swarm.concat(priorityAssets);
+                const sepPush = computeSeparationPush(a.mesh, a.type, allDrones);
+                a.mesh.position.add(sepPush);
+                // Hard constraints — never enter buildings, airport, or violate LCR band if assigned
+                enforceConstraints(a.mesh.position, getDroneRadius(a.type), { lcrBand: a.isLCR });
+                // Spinning rotors + breathing shroud
+                a.mesh.userData.rotors.forEach(r => { r.rotation.y += 1.5; });
+                if (a.mesh.userData.shroudWire) {
+                    a.mesh.userData.shroudWire.rotation.y += 0.008;
+                    a.mesh.userData.shroudWire.rotation.x += 0.005;
                 }
-            });
-
-            // Handle Commercial Swarm (Strict Waypoint Rerouting)
-            for (let i = swarm.length - 1; i >= 0; i--) {
-                let d = swarm[i];
-                let beingRepelled = false;
-                let pushX = 0;
-                let pushY = 0;
-                
-                // Repelling Math
-                priorityAssets.forEach(a => {
-                    const dx = d.x - a.x; const dy = d.y - a.y; 
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    if (d.type > a.type && dist < YIELD_RADIUS) { 
-                        beingRepelled = true; 
-                        const force = (YIELD_RADIUS - dist) / YIELD_RADIUS; 
-                        pushX += (dx / dist) * force * 10.0; // Hard, magnetic push out of the way
-                        pushY += (dy / dist) * force * 10.0;
+                // Trail update — always visible, color of priority class
+                if (a.trail) {
+                    a.trailHistory.unshift(a.mesh.position.clone());
+                    if (a.trailHistory.length > a.trailMax) a.trailHistory.length = a.trailMax;
+                    for (let j = 0; j < a.trailMax; j++) {
+                        const pt = a.trailHistory[j] || a.mesh.position;
+                        a.trailPos[j*3] = pt.x;
+                        a.trailPos[j*3+1] = pt.y;
+                        a.trailPos[j*3+2] = pt.z;
                     }
-                });
-                
-                if (beingRepelled) {
-                    d.el.classList.add('yielding');
-                    // Instant Brake & Slide: Zero out flight velocity, apply only the physical push
-                    d.vx = 0; 
-                    d.vy = 0;
-                    d.x += pushX;
-                    d.y += pushY;
-                } else {
-                    d.el.classList.remove('yielding');
-                    
-                    // Strict Recalculation: Point directly from CURRENT position to ORIGINAL exit point
-                    const toEndX = d.endX - d.x;
-                    const toEndY = d.endY - d.y;
-                    const distToEnd = Math.sqrt(toEndX*toEndX + toEndY*toEndY);
-                    
-                    if (distToEnd > 5) {
-                        const targetVx = (toEndX / distToEnd) * d.baseSpeed;
-                        const targetVy = (toEndY / distToEnd) * d.baseSpeed;
-                        
-                        // Snappy course correction without jitter
-                        d.vx += (targetVx - d.vx) * 0.2;
-                        d.vy += (targetVy - d.vy) * 0.2;
-                    }
-                    
-                    d.x += d.vx; 
-                    d.y += d.vy;
+                    a.trailGeo.attributes.position.needsUpdate = true;
                 }
-                
-                d.el.style.left = d.x + 'px'; 
-                d.el.style.top = d.y + 'px';
-
-                // Check distance to final exit point to gracefully despawn and replace
-                const distFromEnd = Math.sqrt(Math.pow(d.x - d.endX, 2) + Math.pow(d.y - d.endY, 2));
-                if (distFromEnd < 20 || d.x < -200 || d.x > w + 200 || d.y < -200 || d.y > h + 200) {
-                    d.el.remove();
-                    swarm.splice(i, 1);
-                    spawnSingleDrone(); // Instantly replace off-grid
+                // Despawn if off-grid; clean up trail
+                if (Math.abs(a.mesh.position.x) > AIRSPACE_W + 80 || Math.abs(a.mesh.position.z) > AIRSPACE_W + 80) {
+                    disposeGroup(a.mesh);
+                    if (a.trail) { disposeMesh(a.trail); scene.remove(a.trail); }
+                    priorityAssets.splice(i, 1);
                 }
             }
-            requestAnimationFrame(update);
-        }
 
-        window.onload = () => {
-            initSwarm();
-            update();
-        };
+            let yieldingCount = 0;
+            for (let i = swarm.length - 1; i >= 0; i--) {
+                const d = swarm[i];
+                const allDrones = swarm.concat(priorityAssets);
+
+                // Compute yield push from all higher-priority assets
+                let beingRepelled = false;
+                let yieldPush = new THREE.Vector3();
+                priorityAssets.forEach(a => {
+                    if (d.type > a.type) {
+                        const diff = d.mesh.position.clone().sub(a.mesh.position);
+                        const dist = diff.length();
+                        const reach = YIELD_RADIUS + (4 - a.type) * 2;
+                        if (dist < reach && dist > 0.1) {
+                            beingRepelled = true;
+                            const force = (reach - dist) / reach;
+                            yieldPush.add(diff.normalize().multiplyScalar(force * PUSH_FORCE));
+                        }
+                    }
+                });
+
+                // Inter-drone separation push from EVERY other drone
+                const sepPush = computeSeparationPush(d.mesh, d.type, allDrones);
+
+                const spec = d.mesh.userData.spec;
+                if (beingRepelled) {
+                    yieldingCount++;
+                    d.yielding = true;
+                    d.yieldingFrames = YIELD_COOLDOWN;
+                    // Apply yield push + separation, zero out flight velocity
+                    d.mesh.position.add(yieldPush);
+                    d.mesh.position.add(sepPush);
+                    d.vel.set(0, 0, 0);
+                    d.mesh.userData.bodyMat.color.setHex(0xf97316);
+                    d.mesh.userData.bodyMat.emissive.setHex(0xf97316);
+                    d.mesh.userData.bodyMat.emissiveIntensity = 0.9;
+                    if (d.mesh.userData.eye) d.mesh.userData.eye.material.color.setHex(0xfbbf24);
+                    d.mesh.userData.halos.forEach(h => h.material.color.setHex(0xf97316));
+                } else {
+                    if (d.yieldingFrames > 0) {
+                        d.yieldingFrames--;
+                        if (d.yieldingFrames === 0) {
+                            d.yielding = false;
+                            d.mesh.userData.bodyMat.color.setHex(spec.dim);
+                            d.mesh.userData.bodyMat.emissive.setHex(spec.color);
+                            d.mesh.userData.bodyMat.emissiveIntensity = d.type <= 3 ? 0.65 : 0.45;
+                            if (d.mesh.userData.eye) d.mesh.userData.eye.material.color.setHex(spec.emissive);
+                            d.mesh.userData.halos.forEach(h => h.material.color.setHex(spec.color));
+                        }
+                    }
+                    // Recompute heading toward original endpoint
+                    const toEnd = d.end.clone().sub(d.mesh.position);
+                    const distToEnd = toEnd.length();
+                    if (distToEnd > 5) {
+                        const target = toEnd.normalize().multiplyScalar(d.baseSpeed);
+                        d.vel.lerp(target, 0.15);
+                    }
+                    // Apply velocity + separation push
+                    d.mesh.position.add(d.vel);
+                    d.mesh.position.add(sepPush);
+
+                    if (d.vel.lengthSq() > 0.001) {
+                        d.mesh.lookAt(d.mesh.position.clone().add(d.vel));
+                    }
+                }
+
+                // Hard constraints — guarantees no swarm drone ever enters a building shroud,
+                // crosses the airport zone, or breaks the LCR ceiling
+                enforceConstraints(d.mesh.position, getDroneRadius(d.type), { swarmCeiling: true });
+
+                d.mesh.userData.rotors.forEach(r => { r.rotation.y += 1.5; });
+                if (d.mesh.userData.shroudWire) {
+                    d.mesh.userData.shroudWire.rotation.y += 0.008;
+                    d.mesh.userData.shroudWire.rotation.x += 0.005;
+                }
+
+                d.trailHistory.unshift(d.mesh.position.clone());
+                if (d.trailHistory.length > d.trailMax) d.trailHistory.length = d.trailMax;
+                for (let j = 0; j < d.trailMax; j++) {
+                    const pt = d.trailHistory[j] || d.mesh.position;
+                    d.trailPos[j*3] = pt.x;
+                    d.trailPos[j*3+1] = pt.y;
+                    d.trailPos[j*3+2] = pt.z;
+                }
+                d.trailGeo.attributes.position.needsUpdate = true;
+                if (d.yielding || d.yieldingFrames > 0) {
+                    d.trailMat.color.setHex(0xf97316);
+                    d.trailMat.opacity = THREE.MathUtils.lerp(d.trailMat.opacity, 0.85, 0.15);
+                    d.trailMat.size = d.type === 5 ? 0.55 : 0.7;
+                } else {
+                    d.trailMat.color.setHex(spec.color);
+                    d.trailMat.opacity = THREE.MathUtils.lerp(d.trailMat.opacity, 0.18, 0.08);
+                    d.trailMat.size = d.type === 5 ? 0.4 : 0.55;
+                }
+
+                const distFromEnd = d.mesh.position.distanceTo(d.end);
+                if (distFromEnd < 6 || Math.abs(d.mesh.position.x) > AIRSPACE_W + 60 || Math.abs(d.mesh.position.z) > AIRSPACE_W + 60) {
+                    disposeGroup(d.mesh);
+                    disposeMesh(d.trail); scene.remove(d.trail);
+                    swarm.splice(i, 1);
+                    spawnSingleSwarm(false);
+                }
+            }
+
+            cntSwarm.textContent = swarm.length;
+            cntYield.textContent = yieldingCount;
+            cntP1.textContent = priorityAssets.filter(a => a.type === 1).length;
+            cntP2.textContent = priorityAssets.filter(a => a.type === 2).length;
+            cntP3.textContent = priorityAssets.filter(a => a.type === 3).length;
+
+            const orbitT = elapsed * 0.018;
+            const camR = 250;
+            camera.position.lerp(new THREE.Vector3(Math.cos(orbitT) * camR, 95, Math.sin(orbitT) * camR), 0.018);
+            camera.position.y += Math.sin(elapsed * 0.5) * 0.15;
+            camera.lookAt(0, 28, 0);
+
+            stars.rotation.y += 0.00008;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    })();
     </script>
 </body>
 </html>

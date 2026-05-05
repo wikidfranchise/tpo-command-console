@@ -2,168 +2,824 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TPO Immutable Ledger & Actuarial Audit Trail</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Immutable Audit Ledger — 3-Lane Tactical Timeline</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #020617; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        
-        #main-display { flex-grow: 1; display: flex; padding: 20px; gap: 20px; background: radial-gradient(circle at center, #0f172a 0%, #020617 100%); overflow: hidden; }
-        
-        /* Left: Architecture & Visualization */
-        #architecture-panel { flex: 4; position: relative; border: 1px solid #334155; border-radius: 8px; background: rgba(15, 23, 42, 0.8); padding: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .panel-title { position: absolute; top: 15px; left: 20px; color: #06b6d4; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; font-size: 12px; }
-        
-        .visual-node { width: 80px; height: 80px; background: #1e293b; border: 2px solid #64748b; border-radius: 8px; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 10px; color: #cbd5e1; text-align: center; position: relative; z-index: 10; transition: all 0.3s; }
-        .visual-node.active { border-color: #10b981; box-shadow: 0 0 25px rgba(16, 185, 129, 0.4); }
-        
-        .pulse-ring { position: absolute; width: 100%; height: 100%; border-radius: 8px; border: 2px solid #10b981; top: -2px; left: -2px; opacity: 0; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.8); opacity: 0; } }
-        .pulsing .pulse-ring { animation: pulse 1s ease-out; }
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(ellipse at center, #0a1530 0%, #020617 100%); }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
 
-        /* Right: The Cryptographic Ledger */
-        #ledger-panel { flex: 6; border: 1px solid #334155; border-radius: 8px; background: #000; padding: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        #ledger-header { background: #0f172a; border-bottom: 1px solid #334155; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .hash-ticker { font-family: 'Courier New', monospace; font-size: 11px; color: #64748b; }
-        
-        #ledger-scroll { flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-        
-        /* Ledger Blocks */
-        .ledger-block { background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; border-left: 4px solid #334155; padding: 15px; font-family: 'Courier New', monospace; font-size: 11px; color: #cbd5e1; opacity: 0; transform: translateY(20px); transition: all 0.4s ease-out; }
-        .ledger-block.visible { opacity: 1; transform: translateY(0); }
-        
-        .block-header { display: flex; justify-content: space-between; border-bottom: 1px dashed #334155; padding-bottom: 8px; margin-bottom: 8px; color: #94a3b8; }
-        .block-row { display: flex; margin-bottom: 4px; }
-        .block-key { width: 180px; color: #64748b; }
-        .block-val { color: #e2e8f0; font-weight: bold; }
-        
-        .val-p1 { color: #ef4444; }
-        .val-yield { color: #fbbf24; }
-        .val-success { color: #10b981; }
-        .val-hash { color: #06b6d4; font-size: 10px; }
+        #status-bar { position: absolute; top: 60px; left: 20px; background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #67e8f9; font-weight: bold; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); max-width: 70%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Tactical Controls */
-        #controls { height: 70px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 15px; z-index: 1000; }
-        .ctrl-btn { background: #0f172a; border: 1px solid #334155; color: #cbd5e1; padding: 12px 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
-        .ctrl-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #67e8f9; font-weight: bold; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #94a3b8; margin-top: 4px; }
+
+        /* Lane-counter strip top-right */
+        #lane-stack { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; }
+        .lane-chip { background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 8px 14px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; backdrop-filter: blur(4px); display: flex; justify-content: space-between; gap: 14px; min-width: 200px; transition: all 0.3s; }
+        .lane-chip strong { font-weight: bold; }
+        .lane-chip.sys { border-left: 3px solid #06b6d4; } .lane-chip.sys strong { color: #67e8f9; }
+        .lane-chip.mis { border-left: 3px solid #fbbf24; } .lane-chip.mis strong { color: #fde68a; }
+        .lane-chip.dat { border-left: 3px solid #22c55e; } .lane-chip.dat strong { color: #86efac; }
+
+        /* Lane labels — float on left edge of each chain row */
+        .lane-label {
+            position: absolute;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            letter-spacing: 0.25em;
+            font-weight: bold;
+            background: rgba(0,0,0,0.78);
+            border-radius: 4px;
+            padding: 6px 10px;
+            z-index: 95;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            white-space: nowrap;
+        }
+        .lane-label.sys { color: #67e8f9; border: 1px solid #06b6d4; }
+        .lane-label.mis { color: #fde68a; border: 1px solid #fbbf24; }
+        .lane-label.dat { color: #86efac; border: 1px solid #22c55e; }
+
+        /* Block-detail expand panel (modal) — appears on block click */
+        #block-detail {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0.85);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.22s ease, transform 0.22s ease;
+            z-index: 200;
+            background: rgba(2, 6, 23, 0.96);
+            border: 1.5px solid #06b6d4;
+            border-radius: 6px;
+            padding: 22px 26px;
+            min-width: 380px; max-width: 540px;
+            box-shadow: 0 16px 60px rgba(0,0,0,0.7), 0 0 30px rgba(6,182,212,0.3);
+            font-family: 'Courier New', monospace;
+        }
+        #block-detail.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); pointer-events: auto; }
+        #block-detail.lane-sys { border-color: #06b6d4; box-shadow: 0 16px 60px rgba(0,0,0,0.7), 0 0 30px rgba(6,182,212,0.3); }
+        #block-detail.lane-mis { border-color: #fbbf24; box-shadow: 0 16px 60px rgba(0,0,0,0.7), 0 0 30px rgba(251,191,36,0.3); }
+        #block-detail.lane-dat { border-color: #22c55e; box-shadow: 0 16px 60px rgba(0,0,0,0.7), 0 0 30px rgba(34,197,94,0.3); }
+        .bd-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #1e293b; }
+        .bd-block-num { font-size: 10px; color: #64748b; letter-spacing: 0.3em; }
+        .bd-block-num strong { color: #67e8f9; font-size: 16px; margin-left: 8px; }
+        .bd-lane-tag { font-size: 10px; padding: 3px 10px; border-radius: 12px; letter-spacing: 0.2em; font-weight: bold; }
+        .bd-lane-tag.sys { background: rgba(6,182,212,0.2); color: #67e8f9; border: 1px solid #06b6d4; }
+        .bd-lane-tag.mis { background: rgba(251,191,36,0.2); color: #fde68a; border: 1px solid #fbbf24; }
+        .bd-lane-tag.dat { background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid #22c55e; }
+        .bd-event { font-size: 18px; font-weight: bold; color: #e2e8f0; letter-spacing: 0.05em; margin-bottom: 6px; }
+        .bd-time { font-size: 11px; color: #94a3b8; margin-bottom: 14px; }
+        .bd-payload { background: rgba(2,6,23,0.6); border: 1px solid #1e293b; border-radius: 4px; padding: 10px 12px; font-size: 11px; line-height: 1.6; }
+        .bd-payload .row { display: flex; justify-content: space-between; gap: 12px; padding: 1px 0; }
+        .bd-payload .row .k { color: #64748b; }
+        .bd-payload .row .v { color: #cbd5e1; font-weight: bold; }
+        .bd-hash { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1e293b; font-size: 10px; color: #64748b; word-break: break-all; }
+        .bd-hash strong { color: #67e8f9; }
+        .bd-close-hint { text-align: center; margin-top: 14px; font-size: 9px; letter-spacing: 0.25em; color: #475569; }
+
+        /* Query result card */
+        #query-result {
+            position: absolute;
+            bottom: 100px; left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 150;
+            background: rgba(2, 6, 23, 0.95);
+            border: 2px solid #22c55e;
+            border-radius: 6px;
+            padding: 16px 22px;
+            min-width: 480px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 24px rgba(34,197,94,0.4);
+            font-family: 'Courier New', monospace;
+        }
+        #query-result.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #query-result.enforcement { border-color: #fbbf24; box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 24px rgba(251,191,36,0.4); }
+        .qr-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid #1e293b; }
+        .qr-querier { font-size: 11px; letter-spacing: 0.25em; color: #86efac; font-weight: bold; }
+        #query-result.enforcement .qr-querier { color: #fde68a; }
+        .qr-flight { font-size: 11px; color: #64748b; letter-spacing: 0.15em; }
+        .qr-flight strong { color: #cbd5e1; font-weight: bold; }
+        .qr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; font-size: 11px; }
+        .qr-grid .k { color: #64748b; letter-spacing: 0.1em; }
+        .qr-grid .v { color: #e2e8f0; font-weight: bold; text-align: right; }
+        .qr-grid .v.good { color: #86efac; }
+        .qr-grid .v.warn { color: #fde68a; }
+        .qr-conclusion { margin-top: 12px; padding-top: 10px; border-top: 1px solid #1e293b; font-size: 12px; color: #e2e8f0; text-align: center; letter-spacing: 0.05em; }
+        .qr-conclusion strong { color: #86efac; }
+        #query-result.enforcement .qr-conclusion strong { color: #fde68a; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 1000; }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 4px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 11px 14px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.mission-btn { border-color: #ef4444; color: #fca5a5; box-shadow: 0 0 8px rgba(239,68,68,0.3); }
+        .step-btn.mission-btn:hover { background: rgba(239,68,68,0.20); }
+        .step-btn.mission-btn.active { background: rgba(239,68,68,0.20); }
+        .step-btn.insurer-btn { border-color: #22c55e; color: #86efac; }
+        .step-btn.insurer-btn:hover { background: rgba(34,197,94,0.18); }
+        .step-btn.faa-btn { border-color: #fbbf24; color: #fde68a; }
+        .step-btn.faa-btn:hover { background: rgba(251,191,36,0.15); }
+        .step-btn.reset-btn { border-color: #94a3b8; color: #94a3b8; margin-left: auto; }
+        .step-btn.reset-btn:hover { background: rgba(148,163,184,0.15); }
+        .step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        @media (max-width: 900px) { .step-btn { padding: 10px 8px; font-size: 10px; } #lane-stack { display: none; } #query-result { min-width: 280px; } }
     </style>
 </head>
 <body>
-    <div id="main-display">
-        <div id="architecture-panel">
-            <div class="panel-title">Edge Node Operations</div>
-            <div style="display: flex; flex-direction: column; gap: 50px; align-items: center;">
-                <div class="visual-node" id="node-sat">LEO<br>SAT MESH<div class="pulse-ring"></div></div>
-                <div style="width: 2px; height: 50px; background: #334155;"></div>
-                <div class="visual-node active" id="node-base" style="border-color: #06b6d4;">SOVEREIGN<br>EDGE NODE<div class="pulse-ring" style="border-color: #06b6d4;"></div></div>
-                <div style="display: flex; gap: 40px; margin-top: 50px;">
-                    <div class="visual-node" id="node-p1" style="border-color: #ef4444;">P1 ASSET<br>(NARCAN)<div class="pulse-ring" style="border-color: #ef4444;"></div></div>
-                    <div class="visual-node" id="node-p4" style="border-color: #3b82f6;">P4 ASSET<br>(COMMERCIAL)<div class="pulse-ring" style="border-color: #3b82f6;"></div></div>
-                </div>
-            </div>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
+
+        <div id="status-bar">SYS_STATUS: LEDGER READY — CLICK SIMULATE NARCAN MISSION</div>
+
+        <div id="brand-mark">
+            <div class="brand-title">IMMUTABLE AUDIT LEDGER</div>
+            <div class="brand-sub">EVERY EVENT · EVERY HOP · CRYPTOGRAPHICALLY SIGNED</div>
         </div>
 
-        <div id="ledger-panel">
-            <div id="ledger-header">
-                <div class="panel-title" style="position: relative; top: 0; left: 0;">Immutable Airspace Ledger</div>
-                <div class="hash-ticker">LATEST BLOCK: <span id="latest-hash" class="val-hash">AWAITING TRANSACTIONS...</span></div>
+        <div id="lane-stack">
+            <div class="lane-chip sys">SYSTEM <strong id="cnt-sys">0</strong></div>
+            <div class="lane-chip mis">MISSION <strong id="cnt-mis">0</strong></div>
+            <div class="lane-chip dat">DATA <strong id="cnt-dat">0</strong></div>
+        </div>
+
+        <div class="lane-label sys" id="lbl-sys" style="display:none">SYSTEM · TPO ARBITRATION</div>
+        <div class="lane-label mis" id="lbl-mis" style="display:none">MISSION · FLIGHT NARRATIVE</div>
+        <div class="lane-label dat" id="lbl-dat" style="display:none">DATA · CHAIN OF CUSTODY</div>
+
+        <div id="block-detail">
+            <div class="bd-header">
+                <div class="bd-block-num">BLOCK <strong id="bd-num">#0000</strong></div>
+                <div class="bd-lane-tag" id="bd-lane">SYSTEM</div>
             </div>
-            <div id="ledger-scroll">
-                </div>
+            <div class="bd-event" id="bd-event">EVENT NAME</div>
+            <div class="bd-time" id="bd-time">T+0.000s · 1730000000.000 epoch</div>
+            <div class="bd-payload" id="bd-payload"></div>
+            <div class="bd-hash">PREV <strong id="bd-prev">0x0000…0000</strong><br>HASH <strong id="bd-hash">0x0000…0000</strong></div>
+            <div class="bd-close-hint">CLICK ANYWHERE TO DISMISS</div>
+        </div>
+
+        <div id="query-result">
+            <div class="qr-header">
+                <div class="qr-querier" id="qr-querier">INSURER · ACTUARIAL QUERY</div>
+                <div class="qr-flight">FLIGHT <strong id="qr-flight">7A8B-9C42</strong></div>
+            </div>
+            <div class="qr-grid" id="qr-grid"></div>
+            <div class="qr-conclusion" id="qr-conclusion">CHAIN-OF-CUSTODY <strong>VERIFIED</strong></div>
         </div>
     </div>
 
     <div id="controls">
-        <button class="ctrl-btn" onclick="logEvent(1)">1. Log 4D Zone & Lease Grant</button>
-        <button class="ctrl-btn" onclick="logEvent(2)">2. Log State Change & Yield</button>
-        <button class="ctrl-btn" onclick="logEvent(3)">3. Log Chain of Custody Drop</button>
-        <button class="ctrl-btn" onclick="logEvent(4)">4. Sync Actuarial Record</button>
+        <span class="ctrl-label">DEMO</span>
+        <button class="step-btn mission-btn" id="btn-mission">▶ SIMULATE NARCAN MISSION</button>
+        <button class="step-btn insurer-btn" id="btn-insurer" disabled>📊 INSURER QUERY</button>
+        <button class="step-btn faa-btn" id="btn-faa" disabled>📊 FAA QUERY</button>
+        <button class="step-btn reset-btn" id="btn-reset">Reset</button>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const scrollPanel = document.getElementById('ledger-scroll');
-        const hashTicker = document.getElementById('latest-hash');
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
 
-        function generateHash() {
-            return '0x' + Array.from({length: 40}, () => Math.floor(Math.random()*16).toString(16)).join('');
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        host.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a1530, 0.035);
+
+        // Sky
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x020617)}, midColor: {value: new THREE.Color(0x0a1530)}, horizonColor: {value: new THREE.Color(0x153060)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.4, h)); col = mix(col, topColor, smoothstep(0.3, 1.0, h)); }
+                    else { col = horizonColor; }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(800, 24, 12), skyMat));
+
+        // Stars (subtle)
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(500 * 3);
+        for (let i = 0; i < 500; i++) {
+            const r = 600, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.7 + 0.1);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
         }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xc8d4f0, size: 0.7, sizeAttenuation: false, transparent: true, opacity: 0.4 }));
+        scene.add(stars);
 
-        function getUTC() {
-            return new Date().toISOString();
-        }
+        // Lights
+        scene.add(new THREE.HemisphereLight(0x1d4870, 0x020617, 0.55));
+        scene.add(new THREE.AmbientLight(0xc8d4f0, 0.30));
+        const keyLight = new THREE.DirectionalLight(0xffffff, 0.45); keyLight.position.set(15, 25, 18); scene.add(keyLight);
 
-        function triggerPulse(nodeId) {
-            const node = document.getElementById(nodeId);
-            node.classList.remove('pulsing');
-            void node.offsetWidth; // trigger reflow
-            node.classList.add('pulsing');
-        }
+        // No ground floor — clean dark space lets blocks float
+        // Subtle horizon grid for depth
+        const grid = new THREE.GridHelper(180, 36, 0x06b6d4, 0x1e293b);
+        grid.position.y = -8; grid.material.transparent = true; grid.material.opacity = 0.18; scene.add(grid);
 
-        const blocks = {
-            1: `
-                <div class="block-header"><span>TX_TIMESTAMP: {time}</span><span>NODE_ID: SVN-882-ALPHA</span></div>
-                <div class="block-row"><span class="block-key">TRANSACTION_TYPE:</span><span class="block-val">COORDINATE_LEASE_GRANT</span></div>
-                <div class="block-row"><span class="block-key">AUTHORIZATION:</span><span class="block-val val-p1">P1_LIFE_CRITICAL_RESPONSE</span></div>
-                <div class="block-row"><span class="block-key">EXECUTION_LOGIC:</span><span class="block-val">4D_ZONE_ACTIVATION</span></div>
-                <div class="block-row"><span class="block-key">ASSET_IDENTIFIER:</span><span class="block-val">RD-BLACKBIRD-09</span></div>
-                <div class="block-row"><span class="block-key">CRYPTOGRAPHIC_HASH:</span><span class="block-val val-hash">{hash}</span></div>
-            `,
-            2: `
-                <div class="block-header"><span>TX_TIMESTAMP: {time}</span><span>NODE_ID: SVN-882-ALPHA</span></div>
-                <div class="block-row"><span class="block-key">TRANSACTION_TYPE:</span><span class="block-val">DYNAMIC_STATE_CHANGE</span></div>
-                <div class="block-row"><span class="block-key">SUBORDINATE_ASSET:</span><span class="block-val">COMMERCIAL_ID_77492</span></div>
-                <div class="block-row"><span class="block-key">ENFORCEMENT_ACTION:</span><span class="block-val val-yield">YIELD_COMPLIANCE_VERIFIED</span></div>
-                <div class="block-row"><span class="block-key">LATENCY_DELTA:</span><span class="block-val">52_MILLISECONDS</span></div>
-                <div class="block-row"><span class="block-key">CRYPTOGRAPHIC_HASH:</span><span class="block-val val-hash">{hash}</span></div>
-            `,
-            3: `
-                <div class="block-header"><span>TX_TIMESTAMP: {time}</span><span>NODE_ID: SVN-882-ALPHA</span></div>
-                <div class="block-row"><span class="block-key">TRANSACTION_TYPE:</span><span class="block-val">CHAIN_OF_CUSTODY_TRANSFER</span></div>
-                <div class="block-row"><span class="block-key">PAYLOAD_DESIGNATION:</span><span class="block-val">NARCAN_4MG_NASAL</span></div>
-                <div class="block-row"><span class="block-key">DELIVERY_STATUS:</span><span class="block-val val-success">CONFIRMED_RELEASE</span></div>
-                <div class="block-row"><span class="block-key">TARGET_COORDINATES:</span><span class="block-val">ENCRYPTED_ZERO_KNOWLEDGE</span></div>
-                <div class="block-row"><span class="block-key">CRYPTOGRAPHIC_HASH:</span><span class="block-val val-hash">{hash}</span></div>
-            `,
-            4: `
-                <div class="block-header"><span>TX_TIMESTAMP: {time}</span><span>NODE_ID: SVN-882-ALPHA</span></div>
-                <div class="block-row"><span class="block-key">TRANSACTION_TYPE:</span><span class="block-val">ACTUARIAL_SYNC_COMPLETE</span></div>
-                <div class="block-row"><span class="block-key">DESTINATION_ROUTING:</span><span class="block-val">SATELLITE_BACKHAUL_MESH</span></div>
-                <div class="block-row"><span class="block-key">LIABILITY_STATUS:</span><span class="block-val val-success">IMMUTABLE_RECORD_LOCKED</span></div>
-                <div class="block-row"><span class="block-key">INSURANCE_BROKER_ID:</span><span class="block-val">VERIFIED_DATA_TRANSFER</span></div>
-                <div class="block-row"><span class="block-key">CRYPTOGRAPHIC_HASH:</span><span class="block-val val-hash">{hash}</span></div>
-            `
+        // Camera — looking forward along Z, blocks on X axis stretching across screen
+        const camera = new THREE.PerspectiveCamera(42, width/height, 0.1, 500);
+        camera.position.set(0, 0.5, 22); camera.lookAt(0, 0, 0);
+
+        function disposeMesh(m) { if (m.geometry) m.geometry.dispose(); if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); } }
+        function disposeGroup(g) { g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); }); if (g.parent) g.parent.remove(g); }
+
+        // ═══════════════════════════════════════════════════════════════
+        // LANE GEOMETRY
+        // 3 lanes stacked vertically. Lane Y positions: SYS top, MIS mid, DAT bottom.
+        // Blocks slide left as new ones spawn on the right.
+        // ═══════════════════════════════════════════════════════════════
+        const LANES = {
+            sys: { y:  3.5, color: 0x06b6d4, emissive: 0x67e8f9, label: 'SYSTEM',  blocks: [] },
+            mis: { y:  0.5, color: 0xfbbf24, emissive: 0xfde68a, label: 'MISSION', blocks: [] },
+            dat: { y: -2.5, color: 0x22c55e, emissive: 0x86efac, label: 'DATA',    blocks: [] },
+        };
+        const BLOCK_SPACING = 2.4;
+        const NEW_BLOCK_X = 11;        // where new blocks are born (right edge)
+        const SETTLE_X_OFFSET = 0;     // newest block sits at this X after slide; older blocks pushed left
+
+        // Block tray rails (visual lane backdrops — faint glowing tracks)
+        Object.keys(LANES).forEach(key => {
+            const lane = LANES[key];
+            const railGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-30, lane.y, 0),
+                new THREE.Vector3(NEW_BLOCK_X + 2, lane.y, 0),
+            ]);
+            const rail = new THREE.Line(railGeo, new THREE.LineBasicMaterial({ color: lane.color, transparent: true, opacity: 0.15 }));
+            scene.add(rail);
+            // Tick marks
+            for (let x = -28; x < NEW_BLOCK_X + 2; x += 2.4) {
+                const tick = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.04), new THREE.MeshBasicMaterial({ color: lane.color, transparent: true, opacity: 0.18 }));
+                tick.position.set(x, lane.y, 0); scene.add(tick);
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // EVENT TYPE DICTIONARY
+        // Each type has: lane, eventName, payload template, icon
+        // ═══════════════════════════════════════════════════════════════
+        const EVENT_TYPES = {
+            'short-code-rx':    { lane: 'mis', name: 'SHORT CODE RECEIVED',  icon: '📞', payload: () => ({ 'CODE': 'REVIVE (738483)', 'SC_DEVICE': 'Cellular',     'SC_LAT_LON': '25.917° N · 97.477° W', 'OV_ESTIMATE': 'WITHIN 800ft' }) },
+            'fleet-query':      { lane: 'sys', name: 'FLEET QUERY',           icon: '🔍', payload: () => ({ 'CRITERIA': 'P1 CAPABLE · NARCAN PRESENT', 'CANDIDATES': '7 DRONES IN RANGE',  'STRATEGY': 'CLOSEST + HEALTHIEST' }) },
+            'drone-selected':   { lane: 'sys', name: 'DRONE SELECTED',        icon: '✓',  payload: () => ({ 'AIRFRAME': 'TAIL N7A8B-3R',           'DISTANCE': '0.42 mi',                  'BATTERY': '94%', 'NODE_ID': 'SOV-BVL-007' }) },
+            'token-issued':     { lane: 'sys', name: 'PECK TOKEN ISSUED',     icon: '🔑', payload: () => ({ 'PRIORITY': 'P1 LCR',                   'LATENCY': '5ms',                       'AUTHORITY': 'TRIBAL PD · BLADE-D',     'EXPIRES': 'T+15min' }) },
+            'lease-grant':      { lane: 'sys', name: '4D LEASE GRANT',        icon: '📐', payload: () => ({ 'VOLUME': '12,400 ft³ SHROUDED CORRIDOR', 'ALTITUDE': '180-260 ft AGL',          'WINDOW': 'T+0 to T+240s',              'P1 PREEMPT': 'ENABLED' }) },
+            'doors-deploy':     { lane: 'mis', name: 'DEPLOY · DOORS OPEN',   icon: '🚪', payload: () => ({ 'NODE_ID': 'SOV-BVL-007',              'DOORS': 'SLIDING (1.2s)',             'DRONE_LIFT': 'VERTICAL · 4ft HOVER' }) },
+            'flight-commenced': { lane: 'mis', name: 'FLIGHT COMMENCED',      icon: '🚁', payload: () => ({ 'PATH': 'SHROUDED CORRIDOR',           'CRUISE_VELOCITY': '52 ft/s',           'ETA': 'T+38s',                         'AUDIO': 'INITIALIZED' }) },
+            'divert-seize':     { lane: 'sys', name: 'DIVERT · CTRL SEIZED',  icon: '⚠️', payload: () => ({ 'TARGET': 'TAIL N4F2K-9X',             'OWNER': 'BLADE-A LESSEE',              'REASON': 'PROJECTED INTERSECT',        'DURATION': '3.2s' }) },
+            'divert-handback':  { lane: 'sys', name: 'DIVERT · CTRL HANDBACK', icon: '↺', payload: () => ({ 'TARGET': 'TAIL N4F2K-9X',             'OWNER': 'BLADE-A LESSEE',              'NEW_VECTOR': 'CLEAR',                  'EVASION_ms': '3,212' }) },
+            'hover-arrived':    { lane: 'mis', name: 'HOVER · OV ACQUIRED',   icon: '🎯', payload: () => ({ 'OV_VISUAL': 'CONFIRMED EO/IR',         'HOVER_ALT': '32 ft AGL',               'SC_PROXIMITY': 'WITHIN 6 ft',          'AUDIO_LINK': 'OPEN' }) },
+            'audio-guidance':   { lane: 'mis', name: 'AUDIO GUIDANCE BEGAN',  icon: '🔊', payload: () => ({ 'SOURCE': 'FIRE STN OVERSEER · LIVE',  'LANGUAGE': 'EN/ES',                    'PROTOCOL': 'CDC NARCAN ADMIN' }) },
+            'narcan-admin':     { lane: 'mis', name: 'NARCAN ADMINISTERED',   icon: '💊', payload: () => ({ 'CONFIRMED_BY': 'SC VOICE + BUTTON',   'PAYLOAD': 'NARCAN 4mg INTRANASAL',     'DELTA_T': '11.4s FROM ARRIVAL' }) },
+            'mission-complete': { lane: 'mis', name: 'MISSION COMPLETE',      icon: '✓',  payload: () => ({ 'OV_STATUS': 'RESPONSIVE',              'EMS_DISPATCHED': 'YES',                'TOTAL_DURATION': '4m 22s' }) },
+            'rtb-initiated':    { lane: 'mis', name: 'RTB INITIATED',         icon: '🏠', payload: () => ({ 'RTB_MODE': 'AUTONOMOUS',               'ETA_BASE': 'T+47s',                    'NODE_ID': 'SOV-BVL-007' }) },
+            'docked-charge':    { lane: 'mis', name: 'DOCKED · CHARGING',     icon: '⚡', payload: () => ({ 'DESCENT': 'VERTICAL · CHARGING PADS',  'DOORS_CLOSED': 'YES',                  'CHARGE_RATE': '95% in 18min' }) },
+            'diode-cross':      { lane: 'dat', name: 'DIODE CROSSING',        icon: '↦',  payload: () => ({ 'TAGS': 'narcan:D',                    'BYTES': '142.6 MB',                    'DIRECTION': 'OPS → BLADE',             'INTEGRITY': 'SHA-256 PASSED' }) },
+            'blade-write':      { lane: 'dat', name: 'BLADE-D WRITE',         icon: '💾', payload: () => ({ 'BLADE': 'BLADE-D (TRIBAL)',           'BYTES': '142.6 MB',                    'TENANT_KEY': '0xA92F…7B41',           'DUPLICATE_CHK': 'CLEAN' }) },
+            'uplink-egress':    { lane: 'dat', name: 'STARLINK UPLINK',       icon: '📡', payload: () => ({ 'PORT': 'BLADE-D · DEDICATED HARDWIRE', 'BANDWIDTH': '128 Mbps SUSTAINED',     'SAT_HOP': 'STARLINK-1283',             'NO_CROSSOVER': 'VERIFIED' }) },
+            'cloud-rx':         { lane: 'dat', name: 'BLADE-D CLOUD RX',      icon: '☁',  payload: () => ({ 'DESTINATION': 'BLADE-D CLOUD',         'CHECKSUM': '0x2B1F…E9C7',              'ACK_LATENCY': '218ms',                 'CHAIN_FINAL': 'CONFIRMED' }) },
         };
 
-        function logEvent(step) {
-            const hash = generateHash();
-            const time = getUTC();
-            
-            // Visual Pulses
-            triggerPulse('node-base');
-            if(step === 1) setTimeout(() => triggerPulse('node-p1'), 300);
-            if(step === 2) { setTimeout(() => triggerPulse('node-p1'), 200); setTimeout(() => triggerPulse('node-p4'), 400); }
-            if(step === 3) setTimeout(() => triggerPulse('node-p1'), 300);
-            if(step === 4) setTimeout(() => triggerPulse('node-sat'), 300);
+        // ═══════════════════════════════════════════════════════════════
+        // NARCAN MISSION SEQUENCE — chronological order across all lanes
+        // ═══════════════════════════════════════════════════════════════
+        const MISSION_SEQUENCE = [
+            { type: 'short-code-rx',    delayMs:    0 },
+            { type: 'fleet-query',      delayMs:  300 },
+            { type: 'drone-selected',   delayMs:  500 },
+            { type: 'token-issued',     delayMs:  650 },
+            { type: 'lease-grant',      delayMs:  800 },
+            { type: 'doors-deploy',     delayMs: 1100 },
+            { type: 'flight-commenced', delayMs: 1500 },
+            { type: 'divert-seize',     delayMs: 1900 },
+            { type: 'divert-handback',  delayMs: 2300 },
+            { type: 'hover-arrived',    delayMs: 2700 },
+            { type: 'audio-guidance',   delayMs: 3100 },
+            { type: 'narcan-admin',     delayMs: 3700 },
+            { type: 'mission-complete', delayMs: 4100 },
+            { type: 'rtb-initiated',    delayMs: 4400 },
+            { type: 'docked-charge',    delayMs: 4900 },
+            { type: 'diode-cross',      delayMs: 5300 },
+            { type: 'blade-write',      delayMs: 5700 },
+            { type: 'uplink-egress',    delayMs: 6100 },
+            { type: 'cloud-rx',         delayMs: 6500 },
+        ];
 
-            // Inject Block
-            const blockHtml = blocks[step].replace('{time}', time).replace(/{hash}/g, hash);
-            
-            const div = document.createElement('div');
-            div.className = 'ledger-block';
-            div.style.borderLeftColor = step === 1 ? '#ef4444' : step === 2 ? '#fbbf24' : step === 3 ? '#10b981' : '#06b6d4';
-            div.innerHTML = blockHtml;
-            
-            scrollPanel.appendChild(div);
-            
-            // Trigger animation
-            setTimeout(() => { div.classList.add('visible'); }, 50);
-            
-            // Auto scroll to bottom
-            setTimeout(() => { scrollPanel.scrollTop = scrollPanel.scrollHeight; }, 100);
-
-            // Update ticker
-            hashTicker.innerText = hash;
-            hashTicker.style.color = '#10b981';
-            setTimeout(() => { hashTicker.style.color = '#06b6d4'; }, 500);
+        // ═══════════════════════════════════════════════════════════════
+        // BLOCK FACTORY
+        // Each block is a flat tactical chip. Color-coded to lane.
+        // Has a face plane with text texture (icon, time, hash).
+        // ═══════════════════════════════════════════════════════════════
+        function makeBlockFaceTexture(eventDef, blockNum, timestampSec, hashStr) {
+            const c = document.createElement('canvas');
+            c.width = 256; c.height = 192;
+            const ctx = c.getContext('2d');
+            // background (dark with lane-color rim)
+            ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, 256, 192);
+            const laneColors = { sys: '#06b6d4', mis: '#fbbf24', dat: '#22c55e' };
+            const laneTextColors = { sys: '#67e8f9', mis: '#fde68a', dat: '#86efac' };
+            ctx.strokeStyle = laneColors[eventDef.lane]; ctx.lineWidth = 4;
+            ctx.strokeRect(2, 2, 252, 188);
+            // Block number top-left
+            ctx.fillStyle = '#64748b'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'left';
+            ctx.fillText('BLOCK', 12, 24);
+            ctx.fillStyle = laneTextColors[eventDef.lane]; ctx.font = 'bold 18px monospace';
+            ctx.fillText('#' + String(blockNum).padStart(4, '0'), 60, 24);
+            // Lane tag top-right
+            ctx.fillStyle = laneColors[eventDef.lane]; ctx.font = 'bold 11px monospace'; ctx.textAlign = 'right';
+            ctx.fillText(eventDef.lane.toUpperCase(), 248, 24);
+            // Icon (using emoji at a large size)
+            ctx.font = '38px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(eventDef.icon, 50, 90);
+            // Event name (multi-line if needed)
+            ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+            const words = eventDef.name.split(' ');
+            let line1 = '', line2 = '';
+            for (const w of words) {
+                if ((line1 + ' ' + w).trim().length <= 14) line1 = (line1 + ' ' + w).trim();
+                else line2 = (line2 + ' ' + w).trim();
+            }
+            ctx.fillText(line1, 90, 64);
+            if (line2) ctx.fillText(line2, 90, 82);
+            // Timestamp
+            ctx.fillStyle = '#94a3b8'; ctx.font = '11px monospace';
+            ctx.fillText('T+' + timestampSec.toFixed(3) + 's', 90, 110);
+            // Hash (bottom)
+            ctx.fillStyle = '#64748b'; ctx.font = '10px monospace'; ctx.textAlign = 'left';
+            ctx.fillText('HASH', 12, 158);
+            ctx.fillStyle = laneTextColors[eventDef.lane]; ctx.font = 'bold 11px monospace';
+            ctx.fillText(hashStr.slice(0, 12) + '…', 50, 158);
+            const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+            return tex;
         }
+
+        // Generate a fake hash (deterministic from block num + event)
+        function genHash(blockNum, eventType) {
+            const seed = blockNum * 31 + eventType.length;
+            const chars = '0123456789abcdef';
+            let h = '0x';
+            let s = seed;
+            for (let i = 0; i < 64; i++) {
+                s = (s * 9301 + 49297) % 233280;
+                h += chars[s % 16];
+            }
+            return h;
+        }
+
+        // Block construction
+        function spawnBlock(eventType, missionIdx) {
+            const eventDef = EVENT_TYPES[eventType];
+            if (!eventDef) return null;
+            const lane = LANES[eventDef.lane];
+            const globalNum = ++state_.blockCounter;
+            const tSec = (clock.getElapsedTime() - state_.missionStartT);
+            const hash = genHash(globalNum, eventType);
+            const prevHash = state_.lastHashByLane[eventDef.lane] || '0x' + '0'.repeat(64);
+
+            // Block group
+            const g = new THREE.Group();
+            // Main block (flattened cube — chip)
+            const blockMat = new THREE.MeshStandardMaterial({
+                color: lane.color,
+                emissive: lane.color,
+                emissiveIntensity: 0.35,
+                metalness: 0.6,
+                roughness: 0.35,
+                transparent: true,
+                opacity: 0.92,
+            });
+            const block = new THREE.Mesh(new THREE.BoxGeometry(1.9, 1.45, 0.35), blockMat);
+            g.add(block);
+            // Beveled inner face (slightly inset)
+            const inner = new THREE.Mesh(new THREE.BoxGeometry(1.78, 1.34, 0.34), new THREE.MeshStandardMaterial({ color: 0x020617, metalness: 0.5, roughness: 0.4 }));
+            inner.position.z = 0.02; g.add(inner);
+            // Face plane with text texture
+            const faceTex = makeBlockFaceTexture(eventDef, globalNum, tSec, hash);
+            const face = new THREE.Mesh(new THREE.PlaneGeometry(1.78, 1.34), new THREE.MeshBasicMaterial({ map: faceTex, transparent: true }));
+            face.position.z = 0.19; g.add(face);
+            // Edge glow ring
+            const edgeMat = new THREE.LineBasicMaterial({ color: lane.emissive, transparent: true, opacity: 0.6 });
+            const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.92, 1.47, 0.37)), edgeMat);
+            g.add(edge);
+            // Halo behind the block
+            const halo = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.0), new THREE.MeshBasicMaterial({
+                color: lane.emissive, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending, depthWrite: false
+            }));
+            halo.position.z = -0.4; g.add(halo);
+
+            // Position: spawn at the right edge, settle at NEW_BLOCK_X
+            g.position.set(NEW_BLOCK_X + 4, lane.y, -1);
+            scene.add(g);
+
+            // ── Invisible HITBOX, parented to scene (NOT to g),
+            //    stays at the block's true 1.9×1.45×0.4 size regardless of
+            //    the cosmetic hover scale-up. Prevents adjacent blocks from
+            //    "swallowing" each other's hit area when one is magnified.
+            const pickBox = new THREE.Mesh(
+                new THREE.BoxGeometry(1.9, 1.45, 0.4),
+                new THREE.MeshBasicMaterial({ visible: false, depthWrite: false })
+            );
+            pickBox.position.copy(g.position);
+            scene.add(pickBox);
+
+            const blockObj = {
+                mesh: g, pickBox, blockMat, edgeMat, halo, face, faceTex,
+                lane: eventDef.lane,
+                globalNum, eventType, eventDef,
+                timestamp: tSec,
+                epochTime: Date.now() + missionIdx * 100,
+                hash, prevHash,
+                payload: eventDef.payload(),
+                targetX: NEW_BLOCK_X,
+                spawnT: clock.getElapsedTime(),
+                age: 0,
+                queryHighlight: 0,        // 0..1 (used during query traversal)
+            };
+            pickBox.userData.blockRef = blockObj;
+            blocks.push(blockObj);
+            lane.blocks.push(blockObj);
+            // Push existing blocks left
+            lane.blocks.forEach((b, i) => {
+                b.targetX = NEW_BLOCK_X - (lane.blocks.length - 1 - i) * BLOCK_SPACING;
+            });
+            state_.lastHashByLane[eventDef.lane] = hash;
+            // Update lane counter chip
+            updateLaneCounters();
+            // Spawn hash-chain link from this block to its predecessor in the same lane
+            if (lane.blocks.length >= 2) {
+                const prev = lane.blocks[lane.blocks.length - 2];
+                const linkGeo = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(prev.mesh.position.x + 0.95, lane.y, -0.5),
+                    new THREE.Vector3(g.position.x - 0.95, lane.y, -0.5),
+                ]);
+                const linkMat = new THREE.LineBasicMaterial({ color: lane.emissive, transparent: true, opacity: 0.45 });
+                const link = new THREE.Line(linkGeo, linkMat);
+                scene.add(link);
+                links.push({ line: link, mat: linkMat, geo: linkGeo, fromBlock: prev, toBlock: blockObj });
+            }
+            return blockObj;
+        }
+
+        function updateLaneCounters() {
+            document.getElementById('cnt-sys').textContent = LANES.sys.blocks.length;
+            document.getElementById('cnt-mis').textContent = LANES.mis.blocks.length;
+            document.getElementById('cnt-dat').textContent = LANES.dat.blocks.length;
+        }
+
+        // Click → expand block detail
+        const blockDetail = document.getElementById('block-detail');
+        function showBlockDetail(b) {
+            document.getElementById('bd-num').textContent = '#' + String(b.globalNum).padStart(4, '0');
+            const tag = document.getElementById('bd-lane');
+            tag.textContent = b.eventDef.lane.toUpperCase();
+            tag.className = 'bd-lane-tag ' + b.eventDef.lane;
+            blockDetail.className = 'lane-' + b.eventDef.lane + ' visible';
+            document.getElementById('bd-event').textContent = b.eventDef.icon + '  ' + b.eventDef.name;
+            const epochSec = (b.epochTime / 1000).toFixed(3);
+            document.getElementById('bd-time').textContent = 'T+' + b.timestamp.toFixed(3) + 's · epoch ' + epochSec;
+            const payloadEl = document.getElementById('bd-payload');
+            payloadEl.innerHTML = '';
+            Object.entries(b.payload).forEach(([k, v]) => {
+                const row = document.createElement('div');
+                row.className = 'row';
+                row.innerHTML = `<span class="k">${k}</span><span class="v">${v}</span>`;
+                payloadEl.appendChild(row);
+            });
+            document.getElementById('bd-prev').textContent = b.prevHash.slice(0, 10) + '…' + b.prevHash.slice(-4);
+            document.getElementById('bd-hash').textContent = b.hash.slice(0, 10) + '…' + b.hash.slice(-4);
+        }
+        function hideBlockDetail() { blockDetail.className = ''; }
+        document.addEventListener('click', (e) => {
+            if (blockDetail.classList.contains('visible') && !blockDetail.contains(e.target)) {
+                hideBlockDetail();
+            }
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // CLICK-PICKING via Raycaster
+        // ═══════════════════════════════════════════════════════════════
+        const raycaster = new THREE.Raycaster();
+        const mouseV = new THREE.Vector2();
+        renderer.domElement.addEventListener('click', (e) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouseV.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouseV.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouseV, camera);
+            // Test against true-size pickBoxes (immune to hover scale-up)
+            const intersects = [];
+            blocks.forEach(b => {
+                const i = raycaster.intersectObject(b.pickBox, false);
+                if (i.length > 0) intersects.push({ block: b, dist: i[0].distance });
+            });
+            if (intersects.length > 0) {
+                intersects.sort((a, b) => a.dist - b.dist);
+                showBlockDetail(intersects[0].block);
+            }
+        });
+        // Hover → cursor + track hovered block for magnification
+        let hoveredBlock = null;
+        renderer.domElement.addEventListener('mousemove', (e) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouseV.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouseV.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouseV, camera);
+            // Test against true-size pickBoxes — adjacent blocks no longer
+            // get "swallowed" by a magnified neighbor's hitbox.
+            let newHover = null;
+            let bestDist = Infinity;
+            for (const b of blocks) {
+                const i = raycaster.intersectObject(b.pickBox, false);
+                if (i.length > 0 && i[0].distance < bestDist) {
+                    bestDist = i[0].distance;
+                    newHover = b;
+                }
+            }
+            hoveredBlock = newHover;
+            renderer.domElement.style.cursor = newHover ? 'pointer' : '';
+        });
+        renderer.domElement.addEventListener('mouseleave', () => { hoveredBlock = null; renderer.domElement.style.cursor = ''; });
+
+        // ═══════════════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════════════
+        const blocks = [];
+        const links = [];
+        let state_ = {
+            blockCounter: 0,
+            missionStartT: 0,
+            missionRunning: false,
+            missionTimers: [],
+            lastHashByLane: { sys: null, mis: null, dat: null },
+        };
+
+        function setStatus(msg, color) {
+            const el = document.getElementById('status-bar');
+            el.textContent = msg;
+            el.style.color = color || '#06b6d4';
+            el.style.borderColor = (color || '#06b6d4') + '66';
+        }
+
+        function reset() {
+            // Clear all blocks
+            blocks.forEach(b => {
+                disposeGroup(b.mesh);
+                if (b.pickBox) {
+                    scene.remove(b.pickBox);
+                    b.pickBox.geometry.dispose();
+                    b.pickBox.material.dispose();
+                }
+            });
+            blocks.length = 0;
+            links.forEach(l => { disposeMesh(l.line); scene.remove(l.line); });
+            links.length = 0;
+            LANES.sys.blocks.length = 0;
+            LANES.mis.blocks.length = 0;
+            LANES.dat.blocks.length = 0;
+            state_.blockCounter = 0;
+            state_.lastHashByLane = { sys: null, mis: null, dat: null };
+            // Clear timers
+            state_.missionTimers.forEach(t => clearTimeout(t));
+            state_.missionTimers = [];
+            state_.missionRunning = false;
+            updateLaneCounters();
+            // Hide UI
+            hideBlockDetail();
+            document.getElementById('query-result').className = '';
+            document.getElementById('btn-mission').classList.remove('active');
+            document.getElementById('btn-insurer').disabled = true;
+            document.getElementById('btn-faa').disabled = true;
+            // Hide lane labels until first block
+            ['sys','mis','dat'].forEach(k => { document.getElementById('lbl-'+k).style.display = 'none'; });
+            setStatus('SYS_STATUS: LEDGER READY — CLICK SIMULATE NARCAN MISSION', '#06b6d4');
+        }
+        reset();
+
+        // ═══════════════════════════════════════════════════════════════
+        // RUN MISSION — cascade 19 blocks
+        // ═══════════════════════════════════════════════════════════════
+        function runMission() {
+            if (state_.missionRunning) return;
+            reset();
+            state_.missionRunning = true;
+            state_.missionStartT = clock.getElapsedTime();
+            // Show lane labels (positioned in animation loop based on first block)
+            ['sys','mis','dat'].forEach(k => { document.getElementById('lbl-'+k).style.display = 'block'; });
+            document.getElementById('btn-mission').classList.add('active');
+            setStatus('🚨 SYS_STATUS: NARCAN MISSION ACTIVE — FORGING BLOCKS IN REAL TIME', '#ef4444');
+
+            // Status updates synced to mission beats
+            const statusBeats = [
+                { atMs:    0, msg: '📞 SHORT CODE RECEIVED FROM OBSERVER', color: '#fde68a' },
+                { atMs:  650, msg: '🔑 PECK TOKEN ISSUED · P1 LCR PRIORITY · 5ms', color: '#67e8f9' },
+                { atMs: 1100, msg: '🚪 ENCLOSURE DOORS OPENING · DRONE LIFTING', color: '#fde68a' },
+                { atMs: 1900, msg: '⚠️  DIVERT EVENT — TPO SEIZED A LESSEE DRONE TO AVOID INTERSECT', color: '#67e8f9' },
+                { atMs: 2700, msg: '🎯 DRONE HOVERING OVER OVERDOSE VICTIM · AUDIO LIVE', color: '#fde68a' },
+                { atMs: 3700, msg: '💊 NARCAN ADMINISTERED · OV RESPONSIVE', color: '#22c55e' },
+                { atMs: 4400, msg: '🏠 RETURN TO BASE INITIATED', color: '#fde68a' },
+                { atMs: 5300, msg: '↦  VIDEO CROSSING HARDWARE DIODE · TAGGED narcan:D', color: '#86efac' },
+                { atMs: 6500, msg: '☁  BLADE-D CLOUD RX CONFIRMED · CHAIN OF CUSTODY COMPLETE', color: '#22c55e' },
+            ];
+            statusBeats.forEach(beat => {
+                state_.missionTimers.push(setTimeout(() => {
+                    if (state_.missionRunning) setStatus('SYS_STATUS: ' + beat.msg, beat.color);
+                }, beat.atMs));
+            });
+
+            // Spawn blocks per the sequence
+            MISSION_SEQUENCE.forEach((step, idx) => {
+                const t = setTimeout(() => {
+                    if (!state_.missionRunning) return;
+                    spawnBlock(step.type, idx);
+                }, step.delayMs);
+                state_.missionTimers.push(t);
+            });
+
+            // Mission complete
+            state_.missionTimers.push(setTimeout(() => {
+                if (!state_.missionRunning) return;
+                state_.missionRunning = false;
+                document.getElementById('btn-mission').classList.remove('active');
+                setStatus('SYS_STATUS: ✓ MISSION LOGGED · 19 BLOCKS COMMITTED · CLICK ANY BLOCK TO INSPECT · OR RUN A QUERY', '#22c55e');
+                document.getElementById('btn-insurer').disabled = false;
+                document.getElementById('btn-faa').disabled = false;
+            }, MISSION_SEQUENCE[MISSION_SEQUENCE.length - 1].delayMs + 800));
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // QUERY — traverse blocks and light them up
+        // ═══════════════════════════════════════════════════════════════
+        function runQuery(querier) {
+            // Determine which blocks the querier sees
+            // INSURER reads everything
+            // FAA reads SYS + MISSION (no payload-level data, but knows the events)
+            const visibleBlocks = querier === 'faa'
+                ? blocks.filter(b => b.eventDef.lane !== 'dat')
+                : blocks.slice();
+            if (visibleBlocks.length === 0) return;
+
+            // Reset highlights
+            blocks.forEach(b => { b.queryHighlight = 0; });
+
+            // Traverse blocks one at a time, lighting each
+            const order = visibleBlocks.slice().sort((a, b) => a.timestamp - b.timestamp);
+            order.forEach((b, i) => {
+                setTimeout(() => {
+                    b.queryHighlight = 1.0;
+                }, i * 60);
+            });
+
+            // After traversal, show summary card
+            setTimeout(() => {
+                showQueryResult(querier, visibleBlocks);
+            }, order.length * 60 + 400);
+        }
+
+        function showQueryResult(querier, visibleBlocks) {
+            const card = document.getElementById('query-result');
+            const grid = document.getElementById('qr-grid');
+            grid.innerHTML = '';
+            if (querier === 'insurer') {
+                document.getElementById('qr-querier').textContent = 'INSURER · ACTUARIAL QUERY';
+                card.className = 'visible';
+                const flightId = '7A8B-9C42';
+                document.getElementById('qr-flight').textContent = flightId;
+                const rows = [
+                    ['BLOCKS READ',       visibleBlocks.length, 'good'],
+                    ['MISSION DURATION',  '4m 22s',             ''],
+                    ['PRIORITY CLASS',    'P1 LCR',             ''],
+                    ['DIVERT EVENTS',     '1 (3.2s)',           'warn'],
+                    ['NARCAN OUTCOME',    'OV RESPONSIVE',      'good'],
+                    ['CHAIN-OF-CUSTODY',  'VERIFIED',           'good'],
+                    ['CHECKSUM MATCH',    '0x2B1F…E9C7',        'good'],
+                    ['PREMIUM CALC',      '$0.47',              'good'],
+                ];
+                rows.forEach(([k, v, cls]) => {
+                    grid.innerHTML += `<div class="k">${k}</div><div class="v ${cls}">${v}</div>`;
+                });
+                document.getElementById('qr-conclusion').innerHTML = 'CHAIN OF CUSTODY <strong>VERIFIED</strong> · CLAIM AUTO-SETTLED';
+            } else {
+                document.getElementById('qr-querier').textContent = 'FAA · ENFORCEMENT QUERY';
+                card.className = 'visible enforcement';
+                document.getElementById('qr-flight').textContent = '7A8B-9C42';
+                const rows = [
+                    ['BLOCKS READ',         visibleBlocks.length + ' / ' + blocks.length, 'warn'],
+                    ['BLOCKS WITHHELD',     blocks.length - visibleBlocks.length + ' (DATA · PAYLOAD)', ''],
+                    ['REGULATORY SCOPE',    'PART 108 · BVLOS', ''],
+                    ['LEASE COMPLIANCE',    'WITHIN VOLUME',    'good'],
+                    ['ALTITUDE EXCURSIONS', '0',                'good'],
+                    ['DIVERT EVENTS',       '1 (P1 PREEMPT)',   'good'],
+                    ['INCIDENTS REPORTED',  '0',                'good'],
+                    ['REGULATORY VERDICT',  'COMPLIANT',        'good'],
+                ];
+                rows.forEach(([k, v, cls]) => {
+                    grid.innerHTML += `<div class="k">${k}</div><div class="v ${cls}">${v}</div>`;
+                });
+                document.getElementById('qr-conclusion').innerHTML = 'FLIGHT <strong>COMPLIANT</strong> · NO ENFORCEMENT ACTION';
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // CONTROLS
+        // ═══════════════════════════════════════════════════════════════
+        document.getElementById('btn-mission').addEventListener('click', runMission);
+        document.getElementById('btn-insurer').addEventListener('click', () => runQuery('insurer'));
+        document.getElementById('btn-faa').addEventListener('click', () => runQuery('faa'));
+        document.getElementById('btn-reset').addEventListener('click', reset);
+
+        function onResize() { width = host.clientWidth; height = host.clientHeight; renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); }
+        window.addEventListener('resize', onResize);
+
+        // Project 3D point to screen for lane labels
+        function projectToScreen(v3) {
+            const v = v3.clone().project(camera);
+            return { x: (v.x + 1) / 2 * width, y: (-v.y + 1) / 2 * height };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // ANIMATION LOOP
+        // ═══════════════════════════════════════════════════════════════
+        const clock = new THREE.Clock();
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            // Update each block: slide to target X, age in via fade, gentle hover bob
+            blocks.forEach(b => {
+                b.age = elapsed - b.spawnT;
+                // Slide to target X
+                b.mesh.position.x = THREE.MathUtils.lerp(b.mesh.position.x, b.targetX, 0.10);
+                // Magnification: hovered block scales up to 2.2x and pulls forward in Z
+                const isHovered = (b === hoveredBlock);
+                const targetScale = isHovered ? 2.2 : 1.0;
+                const targetZ = isHovered ? 1.8 : -0.5;
+                const currentScale = b.mesh.scale.x;
+                const newScale = THREE.MathUtils.lerp(currentScale, targetScale, 0.18);
+                b.mesh.scale.set(newScale, newScale, newScale);
+                b.mesh.position.z = THREE.MathUtils.lerp(b.mesh.position.z, targetZ, 0.16);
+                // Subtle Y bob (less aggressive when magnified to keep text steady)
+                const bobAmt = isHovered ? 0.01 : 0.04;
+                b.mesh.position.y = LANES[b.lane].y + Math.sin(elapsed * 1.5 + b.globalNum * 0.5) * bobAmt;
+                // Sync invisible pickBox to the block's TRUE position (no scale copy)
+                // so its hitbox stays the original 1.9×1.45×0.4 in world space.
+                b.pickBox.position.copy(b.mesh.position);
+                // Dim non-hovered blocks slightly when something IS hovered (focus effect)
+                let baseEmissive = 0.35;
+                if (b.age < 0.6) {
+                    const t = b.age / 0.6;
+                    baseEmissive = 0.35 + (1.0 - t) * 0.6;
+                }
+                if (b.queryHighlight > 0) {
+                    baseEmissive += b.queryHighlight * 0.5;
+                    b.queryHighlight = Math.max(0, b.queryHighlight - dt * 0.7);
+                }
+                if (hoveredBlock && !isHovered) baseEmissive *= 0.55;
+                if (isHovered) baseEmissive = Math.max(baseEmissive, 0.85);
+                b.blockMat.emissiveIntensity = baseEmissive;
+                b.edgeMat.opacity = 0.6 + (baseEmissive - 0.35) * 0.6;
+            });
+
+            // Update lane labels (left edge of leftmost block in each lane)
+            ['sys','mis','dat'].forEach(k => {
+                const lane = LANES[k];
+                const lbl = document.getElementById('lbl-' + k);
+                if (lane.blocks.length === 0) { lbl.style.display = 'none'; return; }
+                lbl.style.display = 'block';
+                // Anchor to left of first block in lane
+                const first = lane.blocks[0];
+                const screenPos = projectToScreen(new THREE.Vector3(first.mesh.position.x - 1.5, lane.y, 0));
+                lbl.style.left = Math.max(20, screenPos.x - 200) + 'px';
+                lbl.style.top = (screenPos.y - 12) + 'px';
+            });
+
+            // Camera gentle drift
+            camera.position.x = Math.sin(elapsed * 0.05) * 0.3;
+            camera.position.y = 0.5 + Math.cos(elapsed * 0.04) * 0.15;
+            camera.lookAt(0, 0, 0);
+
+            stars.rotation.y += 0.00006;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    })();
     </script>
 </body>
 </html>

@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Shroud Mathematics — Skeptic's Lab</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(ellipse at center, #0a1530 0%, #020617 100%); display: flex; }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
+
+        #status-bar { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 8px 16px; font-family: 'Courier New', monospace; font-size: 11px; color: #67e8f9; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); white-space: nowrap; font-weight: bold; }
+
+        #brand-mark { position: absolute; bottom: 92px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #67e8f9; font-weight: bold; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #94a3b8; margin-top: 4px; }
+
+        /* Left panel — operator picker */
+        .op-panel {
+            position: absolute;
+            top: 70px;
+            background: rgba(2, 6, 23, 0.85);
+            border: 1px solid #1e293b;
+            border-radius: 6px;
+            padding: 14px 14px 12px;
+            z-index: 100;
+            backdrop-filter: blur(6px);
+            width: 230px;
+        }
+        .op-panel.left { left: 16px; }
+        .op-panel.right-pick { right: 16px; }
+        .op-panel-title {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            letter-spacing: 0.25em;
+            color: #67e8f9;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #1e293b;
+        }
+        .op-panel.compare-b .op-panel-title { color: #fbbf24; }
+        .op-pill {
+            display: block;
+            width: 100%;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid #334155;
+            border-left: 3px solid #334155;
+            color: #94a3b8;
+            padding: 8px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            text-align: left;
+            cursor: pointer;
+            margin-bottom: 4px;
+            transition: all 0.18s;
+            border-radius: 3px;
+            letter-spacing: 0.05em;
+        }
+        .op-pill:hover { background: rgba(30, 41, 59, 0.9); color: white; }
+        .op-pill.active {
+            background: rgba(6, 182, 212, 0.18);
+            color: #67e8f9;
+            border-color: #06b6d4;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.35);
+        }
+        .op-panel.compare-b .op-pill.active {
+            background: rgba(251, 191, 36, 0.18);
+            color: #fde68a;
+            border-color: #fbbf24;
+            box-shadow: 0 0 10px rgba(251, 191, 36, 0.35);
+        }
+        .op-pill .meta { display: block; font-size: 9px; color: #64748b; margin-top: 2px; letter-spacing: 0.1em; }
+        .op-pill.active .meta { color: #94a3b8; }
+
+        /* Right panel — readouts (only shows when not in compare mode, or shows for left side in compare) */
+        #readout-panel {
+            position: absolute;
+            top: 70px;
+            right: 16px;
+            background: rgba(2, 6, 23, 0.85);
+            border: 1px solid #1e293b;
+            border-left: 3px solid #06b6d4;
+            border-radius: 6px;
+            padding: 16px 18px;
+            z-index: 100;
+            backdrop-filter: blur(6px);
+            width: 280px;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s;
+        }
+        #readout-panel.compare-hidden { display: none; }
+        .ro-title { font-size: 10px; letter-spacing: 0.25em; color: #67e8f9; font-weight: bold; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #1e293b; }
+        .ro-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; font-size: 11px; }
+        .ro-row .k { color: #64748b; letter-spacing: 0.1em; }
+        .ro-row .v { color: #cbd5e1; font-weight: bold; }
+        .ro-row .v.priority-p0 { color: #ef4444; }
+        .ro-row .v.priority-p1 { color: #fca5a5; }
+        .ro-row .v.priority-p2 { color: #fbbf24; }
+        .ro-row .v.priority-p3 { color: #67e8f9; }
+        .ro-row .v.priority-p5 { color: #94a3b8; }
+        .ro-divider { height: 1px; background: #1e293b; margin: 10px 0; }
+        .ro-explain {
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: rgba(6, 182, 212, 0.08);
+            border-left: 2px solid #06b6d4;
+            border-radius: 3px;
+            font-size: 11px;
+            line-height: 1.45;
+            color: #cbd5e1;
+            font-family: sans-serif;
+            letter-spacing: 0.02em;
+        }
+        .ro-explain strong { color: #67e8f9; font-weight: bold; }
+
+        /* Sliders panel — bottom, above controls */
+        #sliders {
+            position: absolute;
+            bottom: 92px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 24px;
+            background: rgba(2, 6, 23, 0.85);
+            border: 1px solid #1e293b;
+            border-radius: 6px;
+            padding: 12px 22px;
+            z-index: 100;
+            backdrop-filter: blur(6px);
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+        }
+        .slider-group { display: flex; flex-direction: column; gap: 4px; min-width: 170px; }
+        .slider-group .lbl { display: flex; justify-content: space-between; color: #94a3b8; font-size: 10px; letter-spacing: 0.15em; }
+        .slider-group .lbl strong { color: #67e8f9; font-weight: bold; }
+        .slider-group input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #1e293b;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+        }
+        .slider-group input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: #06b6d4;
+            cursor: pointer;
+            box-shadow: 0 0 6px rgba(6, 182, 212, 0.6);
+        }
+        .slider-group input[type=range]::-moz-range-thumb {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            background: #06b6d4;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 6px rgba(6, 182, 212, 0.6);
+        }
+        .slider-group.disabled { opacity: 0.35; pointer-events: none; }
+
+        #controls {
+            height: 70px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b;
+            display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 1000;
+        }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 4px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 11px 16px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.compare-btn { border-color: #fbbf24; color: #fde68a; }
+        .step-btn.compare-btn.on { background: rgba(251, 191, 36, 0.20); box-shadow: 0 0 12px rgba(251, 191, 36, 0.40); color: #fde68a; }
+        .step-btn.preset-btn { border-color: #06b6d4; color: #67e8f9; }
+        .step-btn.preset-btn:hover { background: rgba(6, 182, 212, 0.18); }
+        .step-btn.reset-btn { border-color: #94a3b8; color: #94a3b8; margin-left: auto; }
+
+        @media (max-width: 1100px) { .op-panel { width: 180px; } #readout-panel { width: 220px; } }
+        @media (max-width: 850px) { .op-panel.right-pick { display: none; } #sliders { display: none; } }
+    </style>
+</head>
+<body>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
+
+        <div id="status-bar">SHROUD MATHEMATICS — PICK · DRAG SLIDERS · COMPARE · WHEEL TO ZOOM · DRAG TO ORBIT</div>
+
+        <div id="brand-mark">
+            <div class="brand-title">SHROUD MATHEMATICS · SKEPTIC'S LAB</div>
+            <div class="brand-sub">DATA SOURCE × MANEUVERABILITY × MISSION CRITICALITY</div>
+        </div>
+
+        <!-- Left operator picker (always visible) -->
+        <div class="op-panel left" id="picker-a">
+            <div class="op-panel-title">OPERATOR · A</div>
+            <div id="pills-a"></div>
+        </div>
+
+        <!-- Right picker — only visible in compare mode -->
+        <div class="op-panel right-pick compare-b" id="picker-b" style="display:none">
+            <div class="op-panel-title">OPERATOR · B</div>
+            <div id="pills-b"></div>
+        </div>
+
+        <!-- Right readout (single mode only) -->
+        <div id="readout-panel">
+            <div class="ro-title">SHROUD READOUT</div>
+            <div class="ro-row"><span class="k">CLASS</span><span class="v" id="ro-class">—</span></div>
+            <div class="ro-row"><span class="k">PRIORITY</span><span class="v" id="ro-priority">—</span></div>
+            <div class="ro-row"><span class="k">DATA SOURCE</span><span class="v" id="ro-data">—</span></div>
+            <div class="ro-row"><span class="k">UPDATE RATE</span><span class="v" id="ro-rate">—</span></div>
+            <div class="ro-divider"></div>
+            <div class="ro-row"><span class="k">FORWARD</span><span class="v" id="ro-fwd">—</span></div>
+            <div class="ro-row"><span class="k">LATERAL</span><span class="v" id="ro-lat">—</span></div>
+            <div class="ro-row"><span class="k">VERTICAL</span><span class="v" id="ro-vert">—</span></div>
+            <div class="ro-row"><span class="k">TOTAL VOLUME</span><span class="v" id="ro-vol">—</span></div>
+            <div class="ro-explain" id="ro-explain"></div>
+        </div>
+
+        <!-- Sliders (single mode only) -->
+        <div id="sliders">
+            <div class="slider-group" id="grp-velocity">
+                <div class="lbl"><span>VELOCITY</span><strong id="lbl-vel">40 ft/s</strong></div>
+                <input type="range" id="slider-velocity" min="0" max="200" value="40">
+            </div>
+            <div class="slider-group" id="grp-latency">
+                <div class="lbl"><span>EFFECTIVE LATENCY</span><strong id="lbl-lat">75 ms</strong></div>
+                <input type="range" id="slider-latency" min="10" max="800" value="75">
+            </div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <span class="ctrl-label">PRESETS</span>
+        <button class="step-btn preset-btn" data-preset="patrol">▶ NYC PD PATROL</button>
+        <button class="step-btn preset-btn" data-preset="lcr">▶ NARCAN LCR</button>
+        <button class="step-btn preset-btn" data-preset="cloud">▶ CLOUD-UTM DELIVERY</button>
+        <button class="step-btn preset-btn" data-preset="balloon">▶ HOT AIR BALLOON</button>
+        <button class="step-btn compare-btn" id="btn-compare">⊞ COMPARE A / B</button>
+        <button class="step-btn reset-btn" id="btn-reset">Reset</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        host.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a1530, 0.0012);
+
+        // Sky shader
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x020617)}, midColor: {value: new THREE.Color(0x0a1530)}, horizonColor: {value: new THREE.Color(0x153060)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.4, h)); col = mix(col, topColor, smoothstep(0.3, 1.0, h)); }
+                    else { col = horizonColor; }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(800, 24, 12), skyMat));
+
+        // Stars
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(500 * 3);
+        for (let i = 0; i < 500; i++) {
+            const r = 600, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.7 + 0.1);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xc8d4f0, size: 0.7, sizeAttenuation: false, transparent: true, opacity: 0.4 }));
+        scene.add(stars);
+
+        // Lights
+        scene.add(new THREE.HemisphereLight(0x1d4870, 0x020617, 0.55));
+        scene.add(new THREE.AmbientLight(0xc8d4f0, 0.30));
+        const keyLight = new THREE.DirectionalLight(0xffffff, 0.45); keyLight.position.set(15, 25, 18); scene.add(keyLight);
+
+        // Ground — large so it stays beneath the camera at all auto-fit distances
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ color: 0x0a1426, roughness: 0.95 }));
+        ground.rotation.x = -Math.PI / 2; ground.position.y = -0.5; scene.add(ground);
+        const grid = new THREE.GridHelper(1500, 75, 0x06b6d4, 0x1e293b);
+        grid.position.y = -0.45; grid.material.transparent = true; grid.material.opacity = 0.25; scene.add(grid);
+
+        // Camera — angled to see scale clearly. Far plane large to handle balloon-class pullbacks.
+        const camera = new THREE.PerspectiveCamera(45, width/height, 0.1, 5000);
+        camera.position.set(45, 35, 70); camera.lookAt(0, 12, 0);
+
+        function disposeMesh(m) { if (m.geometry) m.geometry.dispose(); if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); } }
+        function disposeGroup(g) { g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); }); if (g.parent) g.parent.remove(g); }
+
+        // ═══════════════════════════════════════════════════════════════
+        // OPERATOR CLASS DEFINITIONS
+        // Each defines: priority, data source, base shroud dimensions, scaling
+        // factors (how much velocity/latency expand the shroud), uncertainty halo size,
+        // representative shape (drone, balloon, etc) for the scene.
+        // ═══════════════════════════════════════════════════════════════
+        const OPERATORS = {
+            'peck-drone': {
+                label: 'PECK DRONE',
+                meta: 'Active · P3 · 80ms',
+                priority: 'P3-P5',
+                priorityClass: 'priority-p3',
+                color: 0x06b6d4, emissive: 0x67e8f9,
+                dataSource: 'PECK Tag',
+                updateRate: '<100ms',
+                // Base ellipsoid radii (forward, lateral, vertical) in feet
+                baseFwd: 4, baseLat: 2.5, baseVert: 2,
+                // Velocity/latency multipliers (how much each foot-per-ms of blind travel expands)
+                velLatFwd: 0.65, velLatLat: 0.20, velLatVert: 0.18,
+                // Uncertainty halo factor — how much bigger the halo is than the core
+                haloFactor: 1.15,
+                // Default sim values when this operator is selected
+                defaultVelocity: 40, defaultLatency: 75,
+                velocityRange: [0, 200], latencyRange: [10, 200],
+                explain: '<strong>PECK Tag transponding live.</strong> Sub-100ms position updates · active flight controller · TPO knows exactly where this asset is and where it will be 80ms from now. Tightest shroud in the airspace.',
+                // Scene representation
+                shape: 'drone-quad',
+            },
+            'peck-lcr': {
+                label: 'PECK LCR DRONE',
+                meta: 'Narcan · P1 · Active',
+                priority: 'P1',
+                priorityClass: 'priority-p1',
+                color: 0xef4444, emissive: 0xfca5a5,
+                dataSource: 'PECK Tag · LCR Pri',
+                updateRate: '<100ms',
+                baseFwd: 8, baseLat: 5, baseVert: 4.5,
+                velLatFwd: 0.65, velLatLat: 0.22, velLatVert: 0.20,
+                haloFactor: 1.20,
+                defaultVelocity: 80, defaultLatency: 75,
+                velocityRange: [0, 200], latencyRange: [10, 200],
+                explain: '<strong>P1 LCR · life-saving mission.</strong> Same data fidelity as P3 PECK drones, but everyone yields to it. Slightly larger shroud is mission-criticality buffer — TPO reroutes traffic earlier when an LCR drone is in the air.',
+                shape: 'drone-quad',
+            },
+            'adsb-drone': {
+                label: 'ADS-B DRONE',
+                meta: 'Legacy · P3 · 1Hz',
+                priority: 'P3',
+                priorityClass: 'priority-p3',
+                color: 0xfbbf24, emissive: 0xfde68a,
+                dataSource: 'ADS-B Out',
+                updateRate: '~1Hz',
+                baseFwd: 18, baseLat: 10, baseVert: 8,
+                velLatFwd: 0.70, velLatLat: 0.30, velLatVert: 0.25,
+                haloFactor: 1.55,
+                defaultVelocity: 35, defaultLatency: 1100,
+                velocityRange: [0, 200], latencyRange: [800, 1500],
+                explain: '<strong>ADS-B Out only — no PECK Tag.</strong> Position broadcast at ~1Hz. Up to 1.1 seconds of position uncertainty between updates. Larger shroud compensates for stale data, plus halo expands to cover possible drift.',
+                shape: 'drone-quad',
+            },
+            'small-manned': {
+                label: 'SMALL MANNED A/C',
+                meta: 'C172/PA28 · P2 · ADS-B',
+                priority: 'P2',
+                priorityClass: 'priority-p2',
+                color: 0xfbbf24, emissive: 0xfde68a,
+                dataSource: 'ADS-B + Mode-S',
+                updateRate: '~1Hz',
+                baseFwd: 60, baseLat: 30, baseVert: 25,
+                velLatFwd: 0.55, velLatLat: 0.25, velLatVert: 0.20,
+                haloFactor: 1.35,
+                defaultVelocity: 130, defaultLatency: 1000,
+                velocityRange: [60, 250], latencyRange: [800, 1500],
+                explain: '<strong>Cessna / Piper class · pilot in the loop.</strong> ADS-B Out + Mode-S transponder · pilot reaction lag (~1 sec) folded into shroud. Larger forward extent reflects that the airframe is larger and faster than a drone.',
+                shape: 'plane',
+            },
+            'ultralight-glider': {
+                label: 'ULTRALIGHT / GLIDER',
+                meta: 'Retro-PECK · P0 · Limited Maneuver',
+                priority: 'P0',
+                priorityClass: 'priority-p0',
+                color: 0xef4444, emissive: 0xfca5a5,
+                dataSource: 'Retro-PECK Tag',
+                updateRate: '<200ms',
+                baseFwd: 90, baseLat: 60, baseVert: 50,
+                velLatFwd: 0.50, velLatLat: 0.30, velLatVert: 0.25,
+                haloFactor: 1.30,
+                defaultVelocity: 60, defaultLatency: 180,
+                velocityRange: [25, 100], latencyRange: [50, 300],
+                explain: '<strong>P0 — TOP PRIORITY.</strong> Retro-PECK Tag fits the data quality, but maneuverability is limited (no powered course-change for gliders, restricted lateral motion for ultralights). Shroud reflects what *they* need, not what they pose to others.',
+                shape: 'glider',
+            },
+            'blimp-aerostat': {
+                label: 'BLIMP / AEROSTAT',
+                meta: 'Retro-PECK · P0 · Tethered',
+                priority: 'P0',
+                priorityClass: 'priority-p0',
+                color: 0xef4444, emissive: 0xfca5a5,
+                dataSource: 'Retro-PECK + Tether Coords',
+                updateRate: '<200ms',
+                baseFwd: 130, baseLat: 110, baseVert: 90,
+                velLatFwd: 0.20, velLatLat: 0.15, velLatVert: 0.15,
+                haloFactor: 1.20,
+                defaultVelocity: 5, defaultLatency: 180,
+                velocityRange: [0, 30], latencyRange: [50, 300],
+                explain: '<strong>P0 — TOP PRIORITY.</strong> Almost stationary. Position fully known via tether anchor + Retro-PECK. Huge shroud reflects sheer airframe size and zero ability to dodge. TPO routes everyone else around it.',
+                shape: 'blimp',
+            },
+            'hot-air-balloon': {
+                label: 'HOT AIR BALLOON',
+                meta: 'Retro-PECK · P0 · Wind-Driven',
+                priority: 'P0',
+                priorityClass: 'priority-p0',
+                color: 0xef4444, emissive: 0xfca5a5,
+                dataSource: 'Retro-PECK Tag · Live',
+                updateRate: '<200ms',
+                baseFwd: 180, baseLat: 160, baseVert: 110,
+                velLatFwd: 0.40, velLatLat: 0.40, velLatVert: 0.30,
+                haloFactor: 1.65,
+                defaultVelocity: 12, defaultLatency: 180,
+                velocityRange: [0, 30], latencyRange: [50, 300],
+                explain: '<strong>P0 — HIGHEST PRIORITY IN THE AIRSPACE.</strong> Retro-PECK provides live position, but the balloon itself can\'t steer — wind drift over the next 30 seconds expands the halo dramatically. Even LCR Narcan drops yield to a balloon. Largest shroud TPO will ever generate.',
+                shape: 'balloon',
+            },
+        };
+
+        // ═══════════════════════════════════════════════════════════════
+        // SHROUD COMPUTATION
+        // Returns { fwd, lat, vert, haloFwd, haloLat, haloVert, volume }
+        // velocity in ft/s, latency in ms
+        // ═══════════════════════════════════════════════════════════════
+        function computeShroud(operatorKey, velocity, latency) {
+            const op = OPERATORS[operatorKey];
+            // velocity × latency = blind-travel distance (ft)
+            const blindTravel = velocity * (latency / 1000);
+            const fwd  = op.baseFwd  + blindTravel * op.velLatFwd;
+            const lat  = op.baseLat  + blindTravel * op.velLatLat;
+            const vert = op.baseVert + blindTravel * op.velLatVert;
+            const haloFwd  = fwd  * op.haloFactor;
+            const haloLat  = lat  * op.haloFactor;
+            const haloVert = vert * op.haloFactor;
+            const volume = (4/3) * Math.PI * fwd * lat * vert;  // core volume in ft³
+            return { fwd, lat, vert, haloFwd, haloLat, haloVert, volume, blindTravel };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // SHAPE FACTORIES — each returns a Group
+        // ═══════════════════════════════════════════════════════════════
+        function makeQuadDrone(scale) {
+            scale = scale || 1.0;
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.4, metalness: 0.7, emissive: 0x06b6d4, emissiveIntensity: 0.4 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.95*scale, 0.34*scale, 0.95*scale), bodyMat);
+            g.add(body);
+            const armR = 0.72*scale;
+            for (const p of [[armR,0,armR],[-armR,0,armR],[armR,0,-armR],[-armR,0,-armR]]) {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.13*scale, 0.13*scale, 0.16*scale, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], 0.10*scale, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(1.05*scale, 0.04, 0.07*scale), new THREE.MeshBasicMaterial({ color: 0x000, transparent: true, opacity: 0.5 }));
+                rotor.position.set(p[0], 0.24*scale, p[2]); g.add(rotor);
+                g.userData.rotors = g.userData.rotors || [];
+                g.userData.rotors.push(rotor);
+            }
+            return g;
+        }
+        function makeSmallPlane() {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xb8bcc4, roughness: 0.5, metalness: 0.4 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.55, 7, 16), mat); body.rotation.z = Math.PI/2; g.add(body);
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.4, 12), mat); nose.position.x = 4.2; nose.rotation.z = -Math.PI/2; g.add(nose);
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.14, 11), mat); wing.position.set(0, 0.3, 0); g.add(wing);
+            const tailV = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.4, 0.10), mat); tailV.position.set(-3.0, 0.7, 0); g.add(tailV);
+            const tailH = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.10, 3.0), mat); tailH.position.set(-3.0, 0, 0); g.add(tailH);
+            const prop = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.5, 0.04), new THREE.MeshBasicMaterial({ color: 0x222 })); prop.position.x = 4.95; g.add(prop);
+            g.userData.prop = prop;
+            return g;
+        }
+        function makeGlider() {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xeaeaea, roughness: 0.4, metalness: 0.3 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.30, 6.5, 14), mat); body.rotation.z = Math.PI/2; g.add(body);
+            const nose = new THREE.Mesh(new THREE.SphereGeometry(0.45, 14, 10), mat); nose.position.x = 3.5; nose.scale.set(1.2, 0.9, 0.9); g.add(nose);
+            // Long thin wings (gliders have very high aspect ratio)
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.10, 18), mat); wing.position.y = 0.2; g.add(wing);
+            const tailV = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.0, 0.08), mat); tailV.position.set(-2.8, 0.5, 0); g.add(tailV);
+            const tailH = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 2.4), mat); tailH.position.set(-2.8, 0, 0); g.add(tailH);
+            return g;
+        }
+        function makeBlimp() {
+            const g = new THREE.Group();
+            const points = [];
+            for (let i = 0; i <= 22; i++) {
+                const t = i / 22, angle = t * Math.PI;
+                const r = Math.sin(angle) * 5.5 * (1.0 - 0.10 * Math.cos(angle));
+                const yy = -Math.cos(angle) * 9;
+                points.push(new THREE.Vector2(r, yy));
+            }
+            const env = new THREE.Mesh(new THREE.LatheGeometry(points, 28), new THREE.MeshStandardMaterial({ color: 0xc8c8d0, roughness: 0.5 }));
+            env.rotation.z = Math.PI/2; g.add(env);
+            // Tail fins
+            for (let i = 0; i < 4; i++) {
+                const fin = new THREE.Mesh(new THREE.BoxGeometry(0.18, 2.2, 3), new THREE.MeshStandardMaterial({ color: 0xa0a0a8 }));
+                fin.position.set(-7.5, 0, 0); fin.rotation.x = (i/4) * Math.PI*2;
+                fin.position.y = Math.cos((i/4)*Math.PI*2) * 3.2;
+                fin.position.z = Math.sin((i/4)*Math.PI*2) * 3.2;
+                g.add(fin);
+            }
+            // Gondola
+            const gondola = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 1.4), new THREE.MeshStandardMaterial({ color: 0x2a3340 }));
+            gondola.position.set(0.5, -5.2, 0); g.add(gondola);
+            return g;
+        }
+        function makeBalloon() {
+            const g = new THREE.Group();
+            // Envelope — classic teardrop
+            const envGeo = new THREE.SphereGeometry(8, 24, 18);
+            // Stretch top wider, taper bottom
+            const pos = envGeo.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const y = pos.getY(i);
+                if (y < 0) {
+                    const f = 1 - Math.pow(-y / 8, 1.3) * 0.5;
+                    pos.setX(i, pos.getX(i) * f);
+                    pos.setZ(i, pos.getZ(i) * f);
+                }
+            }
+            envGeo.computeVertexNormals();
+            // Multi-color stripe pattern
+            const stripeColors = [0xef4444, 0xfbbf24, 0xfde68a, 0xef4444, 0x06b6d4, 0xfbbf24];
+            // Single material with vertex colors would be ideal; use a layered approach instead.
+            const env = new THREE.Mesh(envGeo, new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.6, metalness: 0.0 }));
+            env.position.y = 5; g.add(env);
+            // Add visible stripes by adding rings around the equator
+            for (let i = 0; i < 5; i++) {
+                const ringY = 5 + (i - 2) * 1.6;
+                const ringR = 8 * Math.cos((i - 2) * 0.25);
+                const stripe = new THREE.Mesh(
+                    new THREE.TorusGeometry(Math.max(ringR, 1), 0.30, 8, 28),
+                    new THREE.MeshStandardMaterial({ color: stripeColors[i % stripeColors.length], roughness: 0.5 })
+                );
+                stripe.position.y = ringY; stripe.rotation.x = Math.PI/2;
+                g.add(stripe);
+            }
+            // Skirt (open bottom)
+            const skirt = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 1.3, 1.5, 12, 1, true), new THREE.MeshStandardMaterial({ color: 0x222, roughness: 0.7, side: THREE.DoubleSide }));
+            skirt.position.y = -3.7; g.add(skirt);
+            // Basket
+            const basket = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.6, 2.8), new THREE.MeshStandardMaterial({ color: 0x6a4a2a, roughness: 0.85 }));
+            basket.position.y = -5.3; g.add(basket);
+            // Lines from basket to envelope
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x333, transparent: true, opacity: 0.7 });
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * Math.PI * 2;
+                const top = new THREE.Vector3(Math.cos(a) * 1.5, -3.5, Math.sin(a) * 1.5);
+                const bot = new THREE.Vector3(Math.cos(a) * 1.3, -4.5, Math.sin(a) * 1.3);
+                const lineGeo = new THREE.BufferGeometry().setFromPoints([top, bot]);
+                g.add(new THREE.Line(lineGeo, lineMat));
+            }
+            return g;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 6FT HUMAN SILHOUETTE FOR SCALE
+        // ═══════════════════════════════════════════════════════════════
+        function makeHumanFigure() {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x3a4a5e, roughness: 0.9 });
+            // Body: ~6 ft tall figure (1 unit ≈ 1 ft)
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.2, 0.5), mat); torso.position.y = 3.4; g.add(torso);
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 10), mat); head.position.y = 4.85; g.add(head);
+            // Legs
+            const legL = new THREE.Mesh(new THREE.BoxGeometry(0.32, 2.2, 0.32), mat); legL.position.set(-0.22, 1.2, 0); g.add(legL);
+            const legR = new THREE.Mesh(new THREE.BoxGeometry(0.32, 2.2, 0.32), mat); legR.position.set( 0.22, 1.2, 0); g.add(legR);
+            // Arms
+            const armL = new THREE.Mesh(new THREE.BoxGeometry(0.26, 2.0, 0.26), mat); armL.position.set(-0.65, 3.4, 0); g.add(armL);
+            const armR = new THREE.Mesh(new THREE.BoxGeometry(0.26, 2.0, 0.26), mat); armR.position.set( 0.65, 3.4, 0); g.add(armR);
+            // Outline glow so the figure reads against the dark background
+            const outline = new THREE.Mesh(new THREE.BoxGeometry(0.95, 2.25, 0.55), new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
+            outline.position.y = 3.4; g.add(outline);
+            // "6 FT" label
+            const labelTex = makeTextLabel('6 FT', '#67e8f9', 'rgba(15,23,42,0.9)', 128, 32);
+            const label = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), new THREE.MeshBasicMaterial({ map: labelTex, transparent: true, side: THREE.DoubleSide }));
+            label.position.set(0, 5.6, 0); g.add(label);
+            return g;
+        }
+        function makeTextLabel(text, color, bg, w, h) {
+            w = w || 256; h = h || 64;
+            const c = document.createElement('canvas'); c.width = w; c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = bg || 'rgba(15,23,42,0.92)'; ctx.fillRect(0, 0, w, h);
+            ctx.strokeStyle = color || '#06b6d4'; ctx.lineWidth = 2; ctx.strokeRect(2, 2, w-4, h-4);
+            ctx.fillStyle = color || '#67e8f9'; ctx.font = `bold ${Math.floor(h*0.55)}px monospace`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(text, w/2, h/2);
+            const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+            return tex;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // SHROUD + SUBJECT GROUP
+        // Encapsulates an operator-shape, two ellipsoid layers (core + halo),
+        // and a label below the ellipsoid.
+        // ═══════════════════════════════════════════════════════════════
+        function buildShroudGroup(originX) {
+            const g = new THREE.Group();
+            // Core ellipsoid (denser fill — brighter contribution against the dark background)
+            const core = new THREE.Mesh(
+                new THREE.SphereGeometry(1, 32, 24),
+                new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+            );
+            // Wireframe overlay — bright neon green, dense mesh for legibility against the dark background.
+            const coreWire = new THREE.Mesh(
+                new THREE.SphereGeometry(1, 32, 22),
+                new THREE.MeshBasicMaterial({ color: 0x39ff14, transparent: true, opacity: 0.95, wireframe: true })
+            );
+            // Secondary white wireframe — thinner, layered on top to give the lines extra punch.
+            const coreWire2 = new THREE.Mesh(
+                new THREE.SphereGeometry(1.005, 20, 14),
+                new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, wireframe: true })
+            );
+            // Halo (uncertainty cloud) — fainter, larger, but boosted opacity for visibility
+            const halo = new THREE.Mesh(
+                new THREE.SphereGeometry(1, 24, 18),
+                new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+            );
+            g.add(halo); g.add(core); g.add(coreWire); g.add(coreWire2);
+            // Subject placeholder (replaced when we know the operator)
+            const subjectAnchor = new THREE.Group();
+            g.add(subjectAnchor);
+            // Floor circle (footprint ring) — pure white for maximum contrast against the floor
+            const footprint = new THREE.Mesh(
+                new THREE.RingGeometry(0.96, 1.0, 64),
+                new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, side: THREE.DoubleSide })
+            );
+            footprint.rotation.x = -Math.PI/2;
+            footprint.position.y = -0.45;
+            g.add(footprint);
+            // Class label — Sprite (always faces camera, depthTest disabled so wireframes never occlude)
+            const labelTex = makeTextLabel('—', '#67e8f9', 'rgba(15,23,42,0.95)', 256, 48);
+            const labelMat = new THREE.SpriteMaterial({
+                map: labelTex,
+                transparent: true,
+                depthTest: false,
+                depthWrite: false,
+            });
+            const label = new THREE.Sprite(labelMat);
+            label.scale.set(8, 1.5, 1);
+            label.position.y = -2.5;
+            label.renderOrder = 999;
+            g.add(label);
+            g.position.x = originX;
+            scene.add(g);
+            return { group: g, core, coreWire, coreWire2, halo, footprint, subjectAnchor, label };
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════════════
+        const state_ = {
+            compareMode: false,
+            opA: 'peck-drone',
+            opB: 'hot-air-balloon',
+            // Per-side velocity/latency overrides
+            velA: 40, latA: 75,
+            velB: 12, latB: 180,
+            // Camera control state
+            autoFitDistance: 100,
+            manualZoom: 1.0,         // wheel multiplier on auto-fit distance
+            manualOrbitX: 0,         // horizontal drag offset (radians)
+            manualOrbitY: 0,         // vertical drag offset (radians)
+            isDragging: false,
+            lastMouseX: 0,
+            lastMouseY: 0,
+        };
+
+        // Build human silhouettes and shroud groups
+        const humanA = makeHumanFigure(); scene.add(humanA);
+        const humanB = makeHumanFigure(); scene.add(humanB); humanB.visible = false;
+        const shroudA = buildShroudGroup(0);
+        const shroudB = buildShroudGroup(0);
+        shroudB.group.visible = false;
+
+        // Subjects (operator shapes) for A and B — replaced when operator changes
+        let subjectA = null, subjectB = null;
+
+        function buildSubject(operatorKey) {
+            const op = OPERATORS[operatorKey];
+            switch (op.shape) {
+                case 'drone-quad': return makeQuadDrone(1.4);
+                case 'plane': return makeSmallPlane();
+                case 'glider': return makeGlider();
+                case 'blimp': return makeBlimp();
+                case 'balloon': return makeBalloon();
+                default: return makeQuadDrone(1.4);
+            }
+        }
+
+        function applyOperator(slot, operatorKey, velocity, latency) {
+            const op = OPERATORS[operatorKey];
+            const shroud = slot === 'a' ? shroudA : shroudB;
+            // Replace subject mesh
+            if (slot === 'a') {
+                if (subjectA) { disposeGroup(subjectA); shroud.subjectAnchor.remove(subjectA); }
+                subjectA = buildSubject(operatorKey);
+                shroud.subjectAnchor.add(subjectA);
+                subjectA.position.y = 0;
+            } else {
+                if (subjectB) { disposeGroup(subjectB); shroud.subjectAnchor.remove(subjectB); }
+                subjectB = buildSubject(operatorKey);
+                shroud.subjectAnchor.add(subjectB);
+                subjectB.position.y = 0;
+            }
+            // Compute shroud dims
+            const s = computeShroud(operatorKey, velocity, latency);
+            // Set core scale (forward = X, lateral = Z, vertical = Y)
+            shroud.core.scale.set(s.fwd, s.vert, s.lat);
+            shroud.coreWire.scale.set(s.fwd, s.vert, s.lat);
+            shroud.coreWire2.scale.set(s.fwd, s.vert, s.lat);
+            shroud.halo.scale.set(s.haloFwd, s.haloVert, s.haloLat);
+            shroud.footprint.scale.set(s.fwd, 1, s.lat);
+            // Recolor the *fill* per operator (keeps tenant identity visible)
+            // Wireframe stays neon green and footprint stays white — these are the contrast lines.
+            shroud.core.material.color.setHex(op.color);
+            shroud.halo.material.color.setHex(op.color);
+            // Update label — reposition dynamically below bottom of ellipsoid so it's never inside the shroud
+            const oldTex = shroud.label.material.map;
+            shroud.label.material.map = makeTextLabel(op.label, '#' + op.emissive.toString(16).padStart(6, '0'), 'rgba(15,23,42,0.95)', 256, 48);
+            shroud.label.material.needsUpdate = true;
+            if (oldTex) oldTex.dispose();
+            // Sit label just below the bottom of the shroud — accounts for actual vertical extent
+            shroud.label.position.y = -(s.vert + 3);
+            // Scale label up for big shrouds so it stays readable from the auto-fit camera distance
+            const labelScale = Math.max(1, Math.min(4, s.vert / 8));
+            shroud.label.scale.set(8 * labelScale, 1.5 * labelScale, 1);
+            // Subject Y offset above ground
+            // Many operators sit at altitude visually — center Y of ellipsoid
+            shroud.group.position.y = Math.max(s.vert + 1, 4);
+            return s;
+        }
+
+        function updateReadout(operatorKey, dims) {
+            const op = OPERATORS[operatorKey];
+            document.getElementById('ro-class').textContent = op.label;
+            const pri = document.getElementById('ro-priority');
+            pri.textContent = op.priority;
+            pri.className = 'v ' + op.priorityClass;
+            document.getElementById('ro-data').textContent = op.dataSource;
+            document.getElementById('ro-rate').textContent = op.updateRate;
+            document.getElementById('ro-fwd').textContent = Math.round(dims.fwd) + ' ft';
+            document.getElementById('ro-lat').textContent = Math.round(dims.lat) + ' ft';
+            document.getElementById('ro-vert').textContent = Math.round(dims.vert) + ' ft';
+            // Volume in cubic feet, formatted
+            const vol = dims.volume;
+            let volStr;
+            if (vol < 1000) volStr = Math.round(vol) + ' ft³';
+            else if (vol < 1_000_000) volStr = (vol / 1000).toFixed(1) + 'k ft³';
+            else volStr = (vol / 1_000_000).toFixed(2) + 'M ft³';
+            document.getElementById('ro-vol').textContent = volStr;
+            document.getElementById('ro-explain').innerHTML = op.explain;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // PILLS UI
+        // ═══════════════════════════════════════════════════════════════
+        function buildPills(containerId, slot) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            Object.entries(OPERATORS).forEach(([key, op]) => {
+                const pill = document.createElement('button');
+                pill.className = 'op-pill';
+                pill.dataset.key = key;
+                pill.innerHTML = `${op.label}<span class="meta">${op.meta}</span>`;
+                pill.addEventListener('click', () => selectOperator(slot, key));
+                container.appendChild(pill);
+            });
+            highlightActive(containerId, slot === 'a' ? state_.opA : state_.opB);
+        }
+        function highlightActive(containerId, key) {
+            document.querySelectorAll(`#${containerId} .op-pill`).forEach(p => {
+                p.classList.toggle('active', p.dataset.key === key);
+            });
+        }
+
+        function selectOperator(slot, key) {
+            const op = OPERATORS[key];
+            if (slot === 'a') {
+                state_.opA = key;
+                state_.velA = op.defaultVelocity;
+                state_.latA = op.defaultLatency;
+                highlightActive('pills-a', key);
+                if (!state_.compareMode) {
+                    document.getElementById('slider-velocity').min = op.velocityRange[0];
+                    document.getElementById('slider-velocity').max = op.velocityRange[1];
+                    document.getElementById('slider-velocity').value = state_.velA;
+                    document.getElementById('slider-latency').min = op.latencyRange[0];
+                    document.getElementById('slider-latency').max = op.latencyRange[1];
+                    document.getElementById('slider-latency').value = state_.latA;
+                    document.getElementById('lbl-vel').textContent = state_.velA + ' ft/s';
+                    document.getElementById('lbl-lat').textContent = state_.latA + ' ms';
+                }
+                refreshA();
+            } else {
+                state_.opB = key;
+                state_.velB = op.defaultVelocity;
+                state_.latB = op.defaultLatency;
+                highlightActive('pills-b', key);
+                refreshB();
+            }
+        }
+
+        function refreshA() {
+            const dims = applyOperator('a', state_.opA, state_.velA, state_.latA);
+            if (!state_.compareMode) updateReadout(state_.opA, dims);
+            updateLayout();
+        }
+        function refreshB() {
+            applyOperator('b', state_.opB, state_.velB, state_.latB);
+            updateLayout();
+        }
+
+        // Compute spacing in compare mode so neither shroud overlaps; auto-fit camera to size
+        function updateLayout() {
+            if (!state_.compareMode) {
+                const dimA = computeShroud(state_.opA, state_.velA, state_.latA);
+                shroudA.group.position.x = 0;
+                shroudA.group.visible = true;
+                humanA.position.set(-(dimA.lat + 8), 0, 0);
+                humanA.visible = true;
+                shroudB.group.visible = false;
+                humanB.visible = false;
+                // Auto-fit: camera distance scales with the largest shroud dimension
+                // halo is the biggest extent; pad ×1.6 so there's framing room
+                const fit = Math.max(dimA.haloFwd, dimA.haloLat, dimA.haloVert) * 1.6 + 18;
+                state_.targetCamPos = new THREE.Vector3(fit * 0.55, fit * 0.45, fit * 0.95);
+                state_.targetLookAt = new THREE.Vector3(0, dimA.vert * 0.6, 0);
+                state_.autoFitDistance = fit;
+            } else {
+                const dimA = computeShroud(state_.opA, state_.velA, state_.latA);
+                const dimB = computeShroud(state_.opB, state_.velB, state_.latB);
+                const sep = (dimA.fwd + dimB.fwd) * 1.15 + 30;
+                shroudA.group.position.x = -sep / 2;
+                shroudB.group.position.x =  sep / 2;
+                shroudA.group.visible = true;
+                shroudB.group.visible = true;
+                humanA.position.set(shroudA.group.position.x - dimA.lat - 8, 0, 0);
+                humanA.visible = true;
+                humanB.position.set(shroudB.group.position.x - dimB.lat - 8, 0, 0);
+                humanB.visible = true;
+                // Auto-fit for two shrouds: camera distance covers both + their halos
+                const maxHalo = Math.max(dimA.haloFwd, dimA.haloLat, dimA.haloVert, dimB.haloFwd, dimB.haloLat, dimB.haloVert);
+                const fit = sep + maxHalo * 1.4 + 20;
+                state_.targetCamPos = new THREE.Vector3(0, fit * 0.45, fit * 0.95);
+                state_.targetLookAt = new THREE.Vector3(0, Math.max(dimA.vert, dimB.vert) * 0.7, 0);
+                state_.autoFitDistance = fit;
+            }
+            // Reset manual-zoom adjustment whenever auto-fit recomputes
+            state_.manualZoom = 1.0;
+            state_.manualOrbitX = 0;
+            state_.manualOrbitY = 0;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // SLIDER + BUTTON HANDLERS
+        // ═══════════════════════════════════════════════════════════════
+        document.getElementById('slider-velocity').addEventListener('input', (e) => {
+            state_.velA = parseFloat(e.target.value);
+            document.getElementById('lbl-vel').textContent = Math.round(state_.velA) + ' ft/s';
+            refreshA();
+        });
+        document.getElementById('slider-latency').addEventListener('input', (e) => {
+            state_.latA = parseFloat(e.target.value);
+            document.getElementById('lbl-lat').textContent = Math.round(state_.latA) + ' ms';
+            refreshA();
+        });
+
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+        });
+        function applyPreset(preset) {
+            const map = {
+                'patrol':  'peck-drone',
+                'lcr':     'peck-lcr',
+                'cloud':   'adsb-drone',
+                'balloon': 'hot-air-balloon',
+            };
+            const target = map[preset] || 'peck-drone';
+            // Disable compare so preset shows in single-pane mode
+            if (state_.compareMode) toggleCompare();
+            selectOperator('a', target);
+        }
+
+        function toggleCompare() {
+            state_.compareMode = !state_.compareMode;
+            const btn = document.getElementById('btn-compare');
+            const pickerB = document.getElementById('picker-b');
+            const readout = document.getElementById('readout-panel');
+            const sliders = document.getElementById('sliders');
+            if (state_.compareMode) {
+                btn.classList.add('on');
+                btn.textContent = '⊟ EXIT COMPARE';
+                pickerB.style.display = 'block';
+                readout.classList.add('compare-hidden');
+                sliders.style.display = 'none';
+            } else {
+                btn.classList.remove('on');
+                btn.textContent = '⊞ COMPARE A / B';
+                pickerB.style.display = 'none';
+                readout.classList.remove('compare-hidden');
+                sliders.style.display = 'flex';
+            }
+            refreshA();
+            if (state_.compareMode) refreshB();
+        }
+        document.getElementById('btn-compare').addEventListener('click', toggleCompare);
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            state_.opA = 'peck-drone';
+            state_.opB = 'hot-air-balloon';
+            state_.velA = 40; state_.latA = 75;
+            state_.velB = 12; state_.latB = 180;
+            if (state_.compareMode) toggleCompare();
+            buildPills('pills-a', 'a');
+            buildPills('pills-b', 'b');
+            selectOperator('a', state_.opA);
+        });
+
+        function onResize() { width = host.clientWidth; height = host.clientHeight; renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); }
+        window.addEventListener('resize', onResize);
+
+        // ─── MOUSE INTERACTIONS ──────────────────────────────────────
+        // Wheel: zoom in/out (multiplies auto-fit distance, clamped 0.2× to 4×)
+        // Click+drag: orbit around the look-at target (horizontal + vertical)
+        renderer.domElement.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY * 0.001;
+            state_.manualZoom = Math.max(0.2, Math.min(4.0, state_.manualZoom * (1 + delta)));
+        }, { passive: false });
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            state_.isDragging = true;
+            state_.lastMouseX = e.clientX;
+            state_.lastMouseY = e.clientY;
+            renderer.domElement.style.cursor = 'grabbing';
+        });
+        window.addEventListener('mouseup', () => {
+            state_.isDragging = false;
+            renderer.domElement.style.cursor = '';
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!state_.isDragging) return;
+            const dx = e.clientX - state_.lastMouseX;
+            const dy = e.clientY - state_.lastMouseY;
+            state_.manualOrbitX += dx * 0.005;
+            state_.manualOrbitY = Math.max(-1.2, Math.min(1.2, state_.manualOrbitY - dy * 0.005));
+            state_.lastMouseX = e.clientX;
+            state_.lastMouseY = e.clientY;
+        });
+        // Touch support: pinch-zoom + single-finger drag
+        let lastTouchDist = null;
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                state_.isDragging = true;
+                state_.lastMouseX = e.touches[0].clientX;
+                state_.lastMouseY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                lastTouchDist = Math.sqrt(dx*dx + dy*dy);
+            }
+        });
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 1 && state_.isDragging) {
+                const dx = e.touches[0].clientX - state_.lastMouseX;
+                const dy = e.touches[0].clientY - state_.lastMouseY;
+                state_.manualOrbitX += dx * 0.005;
+                state_.manualOrbitY = Math.max(-1.2, Math.min(1.2, state_.manualOrbitY - dy * 0.005));
+                state_.lastMouseX = e.touches[0].clientX;
+                state_.lastMouseY = e.touches[0].clientY;
+            } else if (e.touches.length === 2 && lastTouchDist) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const ratio = lastTouchDist / dist;
+                state_.manualZoom = Math.max(0.2, Math.min(4.0, state_.manualZoom * ratio));
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+        renderer.domElement.addEventListener('touchend', () => {
+            state_.isDragging = false;
+            lastTouchDist = null;
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // INITIAL SETUP
+        // ═══════════════════════════════════════════════════════════════
+        buildPills('pills-a', 'a');
+        buildPills('pills-b', 'b');
+        selectOperator('a', state_.opA);
+        // Pre-build B so toggle is instant
+        applyOperator('b', state_.opB, state_.velB, state_.latB);
+
+        state_.targetCamPos = new THREE.Vector3(45, 35, 70);
+        state_.targetLookAt = new THREE.Vector3(0, 12, 0);
+
+        // ═══════════════════════════════════════════════════════════════
+        // ANIMATION LOOP
+        // ═══════════════════════════════════════════════════════════════
+        const clock = new THREE.Clock();
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+
+            // Subjects: gentle bob + rotor spin
+            [subjectA, subjectB].forEach((subj, i) => {
+                if (!subj) return;
+                if (subj.userData.rotors) subj.userData.rotors.forEach(r => { r.rotation.y += 1.5; });
+                if (subj.userData.prop) subj.userData.prop.rotation.x += 1.2;
+                subj.position.y = Math.sin(elapsed * 1.2 + i) * 0.18;
+            });
+
+            // Shroud breathing (subtle scale pulse)
+            const breathe = 1 + Math.sin(elapsed * 1.3) * 0.012;
+            [shroudA, shroudB].forEach(s => {
+                if (!s.group.visible) return;
+                s.coreWire.material.opacity = 0.95 + Math.sin(elapsed * 1.5) * 0.05;
+                if (s.coreWire2) s.coreWire2.material.opacity = 0.55 + Math.sin(elapsed * 1.5 + 0.5) * 0.10;
+                s.halo.material.opacity = 0.14 + Math.sin(elapsed * 0.8) * 0.04;
+            });
+
+            // Camera: apply manual zoom (wheel) and orbit (drag) on top of the auto-fit target
+            const baseTarget = state_.targetCamPos.clone();
+            // Convert auto-fit target to spherical, apply manual orbit + zoom, convert back
+            const lookAt = state_.targetLookAt.clone();
+            const offset = baseTarget.clone().sub(lookAt);
+            // Build orbit rotation (Y axis for horizontal, X axis for vertical) on top of current spherical
+            const sph = new THREE.Spherical().setFromVector3(offset);
+            sph.theta -= state_.manualOrbitX;
+            sph.phi = Math.max(0.15, Math.min(Math.PI - 0.15, sph.phi - state_.manualOrbitY));
+            sph.radius *= state_.manualZoom;
+            const adjusted = new THREE.Vector3().setFromSpherical(sph).add(lookAt);
+            camera.position.lerp(adjusted, 0.10);
+            const lookTarget = lookAt.clone();
+            lookTarget.x += Math.sin(elapsed * 0.07) * 1.2;
+            camera.lookAt(lookTarget);
+
+            stars.rotation.y += 0.00006;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    })();
+    </script>
+</body>
+</html>

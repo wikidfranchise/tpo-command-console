@@ -2,94 +2,821 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TPO | Gods Eye Radar - Kill Box Protocol</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Brownsville Border — Kinetic Kill Line</title>
     <style>
-        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #radar-display { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0f172a 0%, #000 100%); }
-        #scanner { position: absolute; top: 50%; left: 50%; width: 200%; height: 200%; background: conic-gradient(from 0deg, rgba(6, 182, 212, 0.15) 0%, transparent 20%); transform-origin: center; animation: scan 4s linear infinite; z-index: 5; pointer-events: none; }
-        @keyframes scan { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
-        .radar-grid { position: absolute; width: 100%; height: 100%; background-image: radial-gradient(rgba(6, 182, 212, 0.3) 1px, transparent 1px); background-size: 50px 50px; z-index: 1; }
-        
-        .target { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; width: 20px; height: 20px; transition: all 0.8s ease; }
-        .target::after { content: ''; position: absolute; top: -5px; left: -5px; right: -5px; bottom: -5px; border-radius: 50%; border: 1px solid currentColor; opacity: 0; transition: opacity 0.3s; }
-        
-        .state-neutral { background: rgba(34, 197, 94, 0.8); box-shadow: 0 0 10px rgba(34, 197, 94, 0.5); color: #22c55e; }
-        .state-verified { background: #22c55e; box-shadow: 0 0 15px #22c55e; color: #22c55e; }
-        .state-verified::after { opacity: 1; border-color: #22c55e; border-width: 2px; animation: pulse-ring 1.5s ease-out infinite; }
-        @keyframes pulse-ring { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
-        .state-hostile { background: #ef4444; box-shadow: 0 0 25px #ef4444; color: #ef4444; animation: pulse-hostile 1s infinite; }
-        .state-hostile::after { opacity: 1; border-color: #ef4444; border-width: 2px; border-style: dashed; animation: rotate 2s linear infinite; }
-        
-        @keyframes pulse-hostile { 0% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.3); } 100% { transform: translate(-50%, -50%) scale(1); } }
-        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        body { margin: 0; padding: 0; background-color: #1a0d05; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #2a1810 0%, #0a0500 100%); }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
 
-        /* Tactical Controls */
-        #controls { height: 70px; background: rgba(15, 23, 42, 0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 1000; }
-        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 12px 24px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; }
-        .step-btn:hover:not(:disabled) { background: #1e293b; color: white; border-color: #06b6d4; }
-        .step-btn.active { background: rgba(6, 182, 212, 0.2); border-color: #06b6d4; color: #06b6d4; box-shadow: 0 0 15px rgba(6, 182, 212, 0.4); }
-        .step-btn.kill-active { background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
-        
-        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0, 0, 0, 0.8); border: 1px solid #334155; padding: 10px 20px; font-family: monospace; font-size: 14px; color: #06b6d4; z-index: 100; letter-spacing: 1px; }
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #06b6d4; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); }
+
+        #phase-info { position: absolute; top: 70px; left: 20px; background: rgba(15,23,42,0.85); border: 1px solid #1e293b; border-left: 3px solid #06b6d4; padding: 14px 20px 14px 18px; z-index: 100; max-width: 380px; backdrop-filter: blur(4px); }
+        .phase-num { font-family: 'Courier New', monospace; font-size: 10px; color: #64748b; letter-spacing: 0.3em; margin-bottom: 6px; }
+        .phase-title { font-size: 17px; font-weight: 300; letter-spacing: 0.02em; color: #e2e8f0; line-height: 1.2; }
+        .phase-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; letter-spacing: 0.04em; }
+
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #06b6d4; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #64748b; margin-top: 4px; }
+
+        #count-strip { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; }
+        .count-chip { background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 8px 14px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; backdrop-filter: blur(4px); display: flex; justify-content: space-between; gap: 14px; min-width: 160px; }
+        .count-chip strong { font-weight: bold; }
+        .count-chip.eliminated strong { color: #ef4444; }
+        .count-chip.incursion strong { color: #fbbf24; }
+        .count-chip.inrange strong { color: #06b6d4; }
+        .count-chip.tars { border-color: #06b6d4; color: #06b6d4; font-size: 10px; }
+        .count-chip.tars strong { color: #06b6d4; }
+        .count-chip.protocol { transition: all 0.3s; }
+        .count-chip.protocol.on { border-color: #ef4444; box-shadow: 0 0 12px rgba(239,68,68,0.3); }
+        .count-chip.protocol strong { color: #94a3b8; transition: color 0.3s; }
+        .count-chip.protocol.on strong { color: #ef4444; }
+
+        #legend { position: absolute; bottom: 20px; left: 20px; z-index: 100; background: rgba(0,0,0,0.7); border: 1px solid #06b6d4; padding: 12px 16px; backdrop-filter: blur(4px); min-width: 250px; }
+        .legend-title { font-family: 'Courier New', monospace; font-size: 10px; color: #06b6d4; letter-spacing: 0.25em; font-weight: bold; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #1e293b; }
+        .legend-row { display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.1em; color: #cbd5e1; padding: 3px 0; }
+        .legend-swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .legend-swatch.line { border-radius: 0; height: 4px; width: 16px; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 8px; z-index: 1000; }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 4px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 12px 18px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.protocol-btn { transition: all 0.3s; }
+        .step-btn.protocol-btn.on { background: rgba(239,68,68,0.22); border-color: #ef4444; color: #fca5a5; box-shadow: 0 0 14px rgba(239,68,68,0.45); }
+        .step-btn.reset-btn { border-color: #94a3b8; color: #94a3b8; margin-left: auto; }
+        .step-btn.reset-btn:hover { background: rgba(148,163,184,0.15); }
+        .step-btn.speed-btn { border-color: #fbbf24; color: #fbbf24; margin-left: 8px; }
+        .step-btn.speed-btn:hover { background: rgba(251,191,36,0.12); }
+
+        /* Sign mouseover popup — bilingual, blown-up version of fence signs */
+        #sign-popup {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(0.85);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.22s ease, transform 0.22s ease;
+            z-index: 200;
+        }
+        #sign-popup.visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        .sign-popup-card {
+            background: #fbbf24;
+            border: 9px solid #000;
+            padding: 26px 36px 22px;
+            width: 380px;
+            color: #000;
+            font-family: sans-serif;
+            text-align: center;
+            box-shadow: 0 24px 80px rgba(0,0,0,0.7), 0 0 30px rgba(251,191,36,0.5);
+        }
+        .sign-popup-icon {
+            width: 0; height: 0;
+            margin: 0 auto 14px;
+            border-left: 36px solid transparent;
+            border-right: 36px solid transparent;
+            border-bottom: 58px solid #000;
+            position: relative;
+        }
+        .sign-popup-icon::after {
+            content: '!';
+            position: absolute;
+            top: 22px; left: 50%;
+            transform: translateX(-50%);
+            color: #fbbf24;
+            font-size: 36px;
+            font-weight: 900;
+            font-family: monospace;
+        }
+        .sign-popup-card h2 { font-size: 28px; font-weight: 900; margin: 6px 0 10px; letter-spacing: 0.04em; }
+        .sign-popup-card h3 { font-size: 22px; font-weight: 900; margin: 6px 0 10px; letter-spacing: 0.04em; }
+        .sign-popup-card p { font-size: 13px; margin: 3px 0; line-height: 1.32; font-weight: bold; letter-spacing: 0.02em; }
+        .sign-popup-divider { height: 2px; background: #000; margin: 14px 0; opacity: 0.4; }
+        .sign-popup-footer { margin-top: 14px; padding-top: 10px; border-top: 2px solid #000; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.06em; }
+        .sign-popup-footer .codes { color: #7a3a08; margin-top: 4px; }
+        .sign-popup-hint {
+            text-align: center;
+            margin-top: 14px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: #06b6d4;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            text-shadow: 0 0 8px rgba(6,182,212,0.5);
+        }
+
+        @media (max-width: 800px) { #phase-info { max-width: 50%; padding: 10px 14px; } .phase-title { font-size: 14px; } #count-strip { display: none; } }
+        @media (max-width: 600px) { #legend { display: none; } }
     </style>
 </head>
 <body>
-    <div id="radar-display">
-        <div class="radar-grid"></div>
-        <div id="scanner"></div>
-        <div id="status-bar">SYS_STATUS: RADAR FEED ACTIVE - RAW KINETIC DATA</div>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
+        <div id="status-bar">SYS_STATUS: TPO PROTOCOL ACTIVE — KINETIC ENGAGEMENT ON SIGHT</div>
+        <div id="phase-info">
+            <div class="phase-num">BORDER SENTINEL · BROWNSVILLE SECTOR</div>
+            <div class="phase-title">No drones cross this line.</div>
+            <div class="phase-sub">Cross blue line · kinetic kill · no exceptions</div>
+        </div>
+        <div id="brand-mark">
+            <div class="brand-title">THE PECKING ORDER</div>
+            <div class="brand-sub">SOUTHWEST BORDER · DUSK</div>
+        </div>
+        <div id="count-strip">
+            <div class="count-chip tars">TARS-AZ-08 <strong>ACTIVE · 10K FT</strong></div>
+            <div class="count-chip protocol on" id="chip-protocol">TPO PROTOCOL <strong id="cnt-protocol">ON</strong></div>
+            <div class="count-chip inrange">IN KILL ZONE <strong id="cnt-inrange">0</strong></div>
+            <div class="count-chip eliminated">ELIMINATED <strong id="cnt-eliminated">0</strong></div>
+            <div class="count-chip incursion">INCURSIONS <strong id="cnt-incursion">0</strong></div>
+        </div>
+        <div id="legend">
+            <div class="legend-title">BROWNSVILLE BORDER</div>
+            <div class="legend-row"><div class="legend-swatch line" style="background:#fbbf24"></div>500-YARD WARNING — KILL ZONE ENTRY</div>
+            <div class="legend-row"><div class="legend-swatch line" style="background:#06b6d4"></div>BLUE LINE — KINETIC THRESHOLD</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#ef4444"></div>HOSTILE — TARGETED</div>
+        </div>
+
+        <!-- Sign mouseover popup — what someone approaching the border from Mexico actually sees -->
+        <div id="sign-popup">
+            <div class="sign-popup-card">
+                <div class="sign-popup-icon"></div>
+                <h2>NO DRONE ZONE</h2>
+                <p>UNAUTHORIZED UAS WITHIN 500 YARDS</p>
+                <p>WILL BE NEUTRALIZED ON SIGHT</p>
+                <p>BY KINETIC FORCE</p>
+                <div class="sign-popup-divider"></div>
+                <h3>ZONA PROHIBIDA PARA DRONES</h3>
+                <p>UAS NO AUTORIZADOS A 500 YARDAS</p>
+                <p>SERÁN NEUTRALIZADOS DE INMEDIATO</p>
+                <p>POR FUERZA CINÉTICA</p>
+                <div class="sign-popup-footer">
+                    <div>TPO PROTOCOL ACTIVE / PROTOCOLO TPO ACTIVO</div>
+                    <div class="codes">US CBP · TRIBAL PD · DoD · 14 CFR § 89 · 10 USC § 130i</div>
+                </div>
+            </div>
+            <div class="sign-popup-hint">↑ South-facing border signage · what Mexico sees ↑</div>
+        </div>
     </div>
-    
+
     <div id="controls">
-        <button class="step-btn active" id="btn1" onclick="setStep(1)">1. Raw Radar</button>
-        <button class="step-btn" id="btn2" onclick="setStep(2)">2. Authenticate TPO Ledger</button>
-        <button class="step-btn" id="btn3" onclick="setStep(3)">3. Reveal Non-Cooperative</button>
-        <button class="step-btn" id="btn4" onclick="setStep(4)">4. EXECUTE KILL BOX</button>
+        <span class="ctrl-label">SECTOR</span>
+        <button class="step-btn protocol-btn on" id="btn-protocol">⚡ TPO PROTOCOL: ON</button>
+        <button class="step-btn speed-btn" id="btn-speed">⏵ SPEED: NORMAL</button>
+        <button class="step-btn reset-btn" id="btn-reset">Reset Sector</button>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const radar = document.getElementById('radar-display');
-        const status = document.getElementById('status-bar');
-        let targets = [];
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
 
-        function spawnSwarm() {
-            for(let i=0; i<35; i++) {
-                const el = document.createElement('div'); el.className = 'target state-neutral';
-                const isCooperative = Math.random() > 0.15; // 85% compliant, 15% rogue
-                const t = { el, isCooperative, x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight, vx: (Math.random() - 0.5) * 1.5, vy: (Math.random() - 0.5) * 1.5 };
-                radar.appendChild(el); targets.push(t);
-            }
-            update();
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        host.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x2a1810, 0.0024);
+
+        // Dusk sky
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x0a1530)}, midColor: {value: new THREE.Color(0x1a2a44)}, horizonColor: {value: new THREE.Color(0xc46028)}, groundColor: {value: new THREE.Color(0x2a1408)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor, groundColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.4, h)); col = mix(col, topColor, smoothstep(0.3, 1.0, h)); }
+                    else { col = mix(horizonColor, groundColor, smoothstep(0.0, -0.3, h)); }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(2000, 32, 16), skyMat));
+
+        // Stars
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(400 * 3);
+        for (let i = 0; i < 400; i++) {
+            const r = 1500, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.6 + 0.1);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xfae8d0, size: 1.0, sizeAttenuation: false, transparent: true, opacity: 0.4 }));
+        scene.add(stars);
+
+        // Lights
+        const sun = new THREE.DirectionalLight(0xffaa66, 0.7); sun.position.set(-200, 60, 50); scene.add(sun);
+        scene.add(new THREE.HemisphereLight(0xc46028, 0x2a1408, 0.45));
+        scene.add(new THREE.AmbientLight(0xffeed0, 0.22));
+        for (let i = 0; i < 4; i++) {
+            const light = new THREE.PointLight(0x06b6d4, 0.35, 100);
+            light.position.set((i - 1.5) * 140, 3, 0);
+            scene.add(light);
         }
 
-        function setStep(step) {
-            document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active', 'kill-active'));
-            document.getElementById('btn'+step).classList.add(step === 4 ? 'kill-active' : 'active');
+        // Ground — SW desert
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(1500, 1500), new THREE.MeshStandardMaterial({ color: 0x3a2515, roughness: 0.95, emissive: 0x1a0a04, emissiveIntensity: 0.2 }));
+        ground.rotation.x = -Math.PI / 2; scene.add(ground);
+        const grid = new THREE.GridHelper(1000, 50, 0x06b6d4, 0x6a3a18);
+        grid.position.y = 0.1; grid.material.transparent = true; grid.material.opacity = 0.18; scene.add(grid);
 
-            if (step === 1) {
-                status.innerText = "SYS_STATUS: RADAR FEED ACTIVE - RAW KINETIC DATA"; status.style.color = "#06b6d4";
-                targets.forEach(t => { t.el.className = 'target state-neutral'; t.el.style.opacity = '1'; t.vx *= (t.vx < 1 ? 1.5 : 1); t.vy *= (t.vy < 1 ? 1.5 : 1); });
+        // Camera — locked US-side oblique. Slow lateral drift only.
+        const camera = new THREE.PerspectiveCamera(48, width/height, 0.5, 4000);
+        camera.position.set(0, 50, 95); camera.lookAt(0, 8, -50);
+
+        function disposeMesh(m) { if (m.geometry) m.geometry.dispose(); if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); } }
+        function disposeGroup(g) { g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); }); if (g.parent) g.parent.remove(g); }
+
+        // ═══════════════════════════════════════════════════════
+        // BORDER GEOMETRY
+        // Border at z = 0. US is z > 0. Mexico z < 0.
+        // 1 unit ≈ 5 ft for fence purposes (visual scale).
+        // ═══════════════════════════════════════════════════════
+        const BORDER_Z = 0;
+        const AIRSPACE_X = 220;
+        const FENCE_HEIGHT = 4;        // ≈ 20 ft
+        const KILL_LINE_Z = 0;          // blue line right at fence
+        const WARNING_LINE_Z = -30;     // 500-yard warning
+        const KILL_ZONE_ENTRY = WARNING_LINE_Z;  // when drones turn red
+
+        // ─── 20ft physical fence ───────────────────────────────
+        function build20ftFence() {
+            const g = new THREE.Group();
+            const concreteMat = new THREE.MeshStandardMaterial({ color: 0x6a6a72, roughness: 0.85 });
+            const steelMat = new THREE.MeshStandardMaterial({ color: 0x3a3a42, roughness: 0.6, metalness: 0.5 });
+            const meshMat = new THREE.MeshStandardMaterial({ color: 0x202028, roughness: 0.7, metalness: 0.4, transparent: true, opacity: 0.85 });
+
+            // Concrete base running the full length
+            const baseRail = new THREE.Mesh(new THREE.BoxGeometry(AIRSPACE_X * 2, 0.5, 0.6), concreteMat);
+            baseRail.position.set(0, 0.25, BORDER_Z); g.add(baseRail);
+
+            // Concrete posts every 8 units
+            for (let x = -AIRSPACE_X; x <= AIRSPACE_X; x += 8) {
+                const post = new THREE.Mesh(new THREE.BoxGeometry(0.45, FENCE_HEIGHT, 0.45), concreteMat);
+                post.position.set(x, FENCE_HEIGHT/2 + 0.5, BORDER_Z); g.add(post);
             }
-            if (step === 2) {
-                status.innerText = "SYS_STATUS: METADATA OVERLAY - ALLIED SIGNATURES VERIFIED"; status.style.color = "#06b6d4";
-                targets.forEach(t => { if(t.isCooperative) t.el.className = 'target state-verified'; else t.el.className = 'target state-neutral'; t.el.style.opacity = '1'; });
+
+            // Steel mesh panels (between posts)
+            for (let x = -AIRSPACE_X + 4; x <= AIRSPACE_X - 4; x += 8) {
+                const panel = new THREE.Mesh(new THREE.BoxGeometry(7.5, FENCE_HEIGHT - 0.3, 0.08), meshMat);
+                panel.position.set(x, FENCE_HEIGHT/2 + 0.5, BORDER_Z); g.add(panel);
             }
-            if (step === 3) {
-                status.innerText = "SYS_STATUS: ANOMALY DETECTED - UNAUTHORIZED SIGNATURES PRESENT"; status.style.color = "#fbbf24";
-                targets.forEach(t => { if(!t.isCooperative) t.el.className = 'target state-hostile'; t.el.style.opacity = '1'; });
+
+            // Vertical wire strands (gives mesh appearance)
+            const wireMat = new THREE.LineBasicMaterial({ color: 0x404048, transparent: true, opacity: 0.55 });
+            for (let x = -AIRSPACE_X; x <= AIRSPACE_X; x += 0.7) {
+                const strand = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(x, 0.6, BORDER_Z),
+                    new THREE.Vector3(x, FENCE_HEIGHT + 0.3, BORDER_Z)
+                ]);
+                g.add(new THREE.Line(strand, wireMat));
             }
-            if (step === 4) {
-                status.innerText = "SYS_STATUS: KILL BOX PROTOCOL ENGAGED - ALLIED ASSETS FILTERED"; status.style.color = "#ef4444";
-                targets.forEach(t => { if(!t.isCooperative) { t.vx *= 0.2; t.vy *= 0.2; } else { t.el.style.opacity = '0.15'; } });
+            // Horizontal cross-strands
+            for (let y = 1.0; y <= FENCE_HEIGHT + 0.2; y += 0.6) {
+                const cross = new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-AIRSPACE_X, y, BORDER_Z),
+                    new THREE.Vector3(AIRSPACE_X, y, BORDER_Z)
+                ]);
+                g.add(new THREE.Line(cross, wireMat));
+            }
+
+            // Top steel rail
+            const topRail = new THREE.Mesh(new THREE.BoxGeometry(AIRSPACE_X * 2, 0.18, 0.25), steelMat);
+            topRail.position.set(0, FENCE_HEIGHT + 0.4, BORDER_Z); g.add(topRail);
+
+            // Razor wire on top — zigzag pattern
+            const razorMat = new THREE.LineBasicMaterial({ color: 0xa8a8b0, transparent: true, opacity: 0.85 });
+            const razorPts = [];
+            for (let x = -AIRSPACE_X; x < AIRSPACE_X; x += 0.5) {
+                razorPts.push(new THREE.Vector3(x, FENCE_HEIGHT + 0.5, BORDER_Z));
+                razorPts.push(new THREE.Vector3(x + 0.25, FENCE_HEIGHT + 0.85, BORDER_Z));
+            }
+            const razor = new THREE.BufferGeometry().setFromPoints(razorPts);
+            g.add(new THREE.Line(razor, razorMat));
+
+            // Floodlights on every 5th post (US side facing south)
+            for (let x = -AIRSPACE_X + 16; x <= AIRSPACE_X - 16; x += 40) {
+                const lampHead = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), new THREE.MeshStandardMaterial({ color: 0x202028, emissive: 0xfbe080, emissiveIntensity: 0.9 }));
+                lampHead.position.set(x, FENCE_HEIGHT + 0.2, BORDER_Z + 0.4);
+                g.add(lampHead);
+            }
+
+            scene.add(g);
+        }
+        build20ftFence();
+
+        // ─── NO DRONE ZONE warning signs ───────────────────────
+        function makeWarningSignTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 460; canvas.height = 560;
+            const ctx = canvas.getContext('2d');
+            // Amber background
+            ctx.fillStyle = '#fbbf24'; ctx.fillRect(0, 0, 460, 560);
+            // Black border
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 14;
+            ctx.strokeRect(7, 7, 446, 546);
+            // Warning triangle at top
+            ctx.fillStyle = '#000';
+            ctx.beginPath(); ctx.moveTo(230, 30); ctx.lineTo(290, 95); ctx.lineTo(170, 95); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#fbbf24'; ctx.font = 'bold 50px monospace'; ctx.textAlign = 'center';
+            ctx.fillText('!', 230, 85);
+            // English block
+            ctx.fillStyle = '#000'; ctx.font = 'bold 36px sans-serif';
+            ctx.fillText('NO DRONE ZONE', 230, 145);
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText('UNAUTHORIZED UAS WITHIN 500 YARDS', 230, 178);
+            ctx.fillText('WILL BE NEUTRALIZED ON SIGHT', 230, 200);
+            ctx.fillText('BY KINETIC FORCE', 230, 222);
+            // Divider
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(50, 248); ctx.lineTo(410, 248); ctx.stroke();
+            // Spanish block
+            ctx.font = 'bold 28px sans-serif';
+            ctx.fillText('ZONA PROHIBIDA', 230, 285);
+            ctx.fillText('PARA DRONES', 230, 318);
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText('UAS NO AUTORIZADOS A 500 YARDAS', 230, 350);
+            ctx.fillText('SERÁN NEUTRALIZADOS DE INMEDIATO', 230, 372);
+            ctx.fillText('POR FUERZA CINÉTICA', 230, 394);
+            // Bottom divider
+            ctx.beginPath(); ctx.moveTo(50, 422); ctx.lineTo(410, 422); ctx.stroke();
+            // Footer
+            ctx.font = 'bold 13px monospace';
+            ctx.fillText('TPO PROTOCOL ACTIVE / PROTOCOLO TPO ACTIVO', 230, 458);
+            ctx.fillText('US CBP · TRIBAL PD · DoD', 230, 488);
+            ctx.fillStyle = '#7a3a08';
+            ctx.fillText('14 CFR § 89  ·  10 USC § 130i', 230, 515);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = 4; return tex;
+        }
+        const signMeshes = []; // for raycaster mouseover detection
+        const warningSignTex = makeWarningSignTexture();
+        function makeWarningSign(x) {
+            const g = new THREE.Group();
+            const post = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 7.5, 8), new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.85 }));
+            post.position.y = 3.75; g.add(post);
+            // Sign plane — 4.5w x 5.5h matches canvas aspect (460x560)
+            const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 5.5), new THREE.MeshBasicMaterial({ map: warningSignTex, side: THREE.DoubleSide }));
+            sign.position.y = 8.0; g.add(sign);
+            const rim = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(4.5, 5.5)), new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.55 }));
+            rim.position.y = 8.0; g.add(rim);
+            g.position.set(x, 0, BORDER_Z + 1.8);
+            g.rotation.y = Math.PI;
+            scene.add(g);
+            signMeshes.push(sign); // hover target
+        }
+        [-160, -55, 55, 160].forEach(x => makeWarningSign(x));
+
+        // ─── BLUE NFL GOAL LINE — kinetic kill threshold ───────
+        function buildKillLine() {
+            const g = new THREE.Group();
+            const w = AIRSPACE_X * 2 + 80;
+            // White flanking stripes (NFL-style)
+            const whiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.65, depthWrite: false, side: THREE.DoubleSide });
+            for (const off of [-1.1, 1.1]) {
+                const w_stripe = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.35), whiteMat);
+                w_stripe.rotation.x = -Math.PI/2;
+                w_stripe.position.set(0, 0.16, KILL_LINE_Z + off);
+                g.add(w_stripe);
+            }
+            // Main bright cyan stripe
+            const blueStripe = new THREE.Mesh(
+                new THREE.PlaneGeometry(w, 1.4),
+                new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+            );
+            blueStripe.rotation.x = -Math.PI/2;
+            blueStripe.position.set(0, 0.18, KILL_LINE_Z);
+            g.add(blueStripe);
+            // Subtle vertical glow rising from the line — the protocol's "active" indicator
+            const glow = new THREE.Mesh(
+                new THREE.PlaneGeometry(w, 6),
+                new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+            );
+            glow.position.set(0, 3, KILL_LINE_Z);
+            g.add(glow);
+            // End-zone tick marks every 20 units (like yard markers)
+            const tickMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
+            for (let x = -200; x <= 200; x += 20) {
+                const tick = new THREE.Mesh(new THREE.PlaneGeometry(0.25, 2.5), tickMat);
+                tick.rotation.x = -Math.PI/2;
+                tick.position.set(x, 0.17, KILL_LINE_Z);
+                g.add(tick);
+            }
+            scene.add(g);
+            return g;
+        }
+        const killLineGroup = buildKillLine();
+
+        // ─── 500-YARD WARNING STRIPE (Mexico side, faint amber) ─
+        const warnStripe = new THREE.Mesh(
+            new THREE.PlaneGeometry(AIRSPACE_X * 2 + 80, 0.8),
+            new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+        );
+        warnStripe.rotation.x = -Math.PI/2;
+        warnStripe.position.set(0, 0.13, WARNING_LINE_Z);
+        scene.add(warnStripe);
+
+        // ═══════════════════════════════════════════════════════
+        // SENSORS — 3 ground radar towers visible. AWACS, TARS noted in HUD only.
+        // ═══════════════════════════════════════════════════════
+        const sensors = [];
+        function makeRadarTower(x, z) {
+            const g = new THREE.Group();
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 14, 6), new THREE.MeshStandardMaterial({ color: 0x444a55, roughness: 0.6, metalness: 0.6 }));
+            pole.position.y = 7; g.add(pole);
+            for (let h = 2; h < 14; h += 3) {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.06, 6, 12), new THREE.MeshStandardMaterial({ color: 0x666c75 }));
+                ring.position.y = h; ring.rotation.x = Math.PI/2; g.add(ring);
+            }
+            const dishGroup = new THREE.Group();
+            const dish = new THREE.Mesh(new THREE.SphereGeometry(2.2, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2.4), new THREE.MeshStandardMaterial({ color: 0xa8b0bc, roughness: 0.4, metalness: 0.7, side: THREE.DoubleSide, emissive: 0x06b6d4, emissiveIntensity: 0.1 }));
+            dish.rotation.x = -Math.PI/2; dish.scale.set(1, 0.5, 1);
+            dishGroup.add(dish);
+            const feed = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 0.8, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+            feed.position.y = 0.4; dishGroup.add(feed);
+            dishGroup.position.y = 14.5; g.add(dishGroup);
+            const box = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.6, 2.5), new THREE.MeshStandardMaterial({ color: 0x2a3340, roughness: 0.7 }));
+            box.position.set(2, 0.8, 0); g.add(box);
+            const lights = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), new THREE.MeshBasicMaterial({ color: 0x06b6d4 }));
+            lights.position.set(3.3, 0.8, 0); g.add(lights);
+            g.position.set(x, 0, z);
+            // Coverage hemisphere — always on
+            const coverage = new THREE.Group();
+            const cone = new THREE.Mesh(new THREE.SphereGeometry(70, 24, 14, 0, Math.PI*2, 0, Math.PI/2.5), new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.035, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+            cone.position.y = 14.5; coverage.add(cone);
+            const cEdges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.SphereGeometry(70, 12, 6, 0, Math.PI*2, 0, Math.PI/2.5)), new THREE.LineBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.13 }));
+            cEdges.position.y = 14.5; coverage.add(cEdges);
+            coverage.position.set(x, 0, z);
+            scene.add(coverage);
+            scene.add(g);
+            sensors.push({ mesh: g, dish: dishGroup, coverage, pos: new THREE.Vector3(x, 14.5, z) });
+        }
+        makeRadarTower(-150, 70);
+        makeRadarTower(0, 95);
+        makeRadarTower(150, 70);
+
+        // ═══════════════════════════════════════════════════════
+        // DRONE FACTORY — unified
+        // ═══════════════════════════════════════════════════════
+        function makeDrone(scale) {
+            scale = scale || 1.0;
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.4, metalness: 0.7, emissive: 0x44665a, emissiveIntensity: 0.45 });
+            g.userData.bodyMat = bodyMat;
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.85*scale, 0.30*scale, 0.85*scale), bodyMat);
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16*scale, 10, 8), new THREE.MeshBasicMaterial({ color: 0x80a890 }));
+            eye.position.y = -0.22*scale; g.add(eye); g.userData.eye = eye;
+            const armR = 0.65 * scale;
+            const armPos = [[armR,0,armR],[-armR,0,armR],[armR,0,-armR],[-armR,0,-armR]];
+            const rotors = []; const halos = [];
+            armPos.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.13*scale, 0.13*scale, 0.16*scale, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], 0.1*scale, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.95*scale, 0.03, 0.07*scale), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 }));
+                rotor.position.set(p[0], 0.24*scale, p[2]); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(0.4*scale, 0.55*scale, 14), new THREE.MeshBasicMaterial({ color: 0x4a8060, transparent: true, opacity: 0.25, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0], 0.24*scale, p[2]); halo.rotation.x = -Math.PI/2; g.add(halo); halos.push(halo);
+            });
+            g.userData.rotors = rotors; g.userData.halos = halos;
+            return g;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // US PATROL DRONES (small surveillance, 2 of them)
+        // Move along east-west on US side. Visible always.
+        // ═══════════════════════════════════════════════════════
+        const patrols = [];
+        function spawnPatrol(z) {
+            const m = makeDrone(0.9);
+            // CBP blue color
+            m.userData.bodyMat.color.setHex(0x1e3a8a);
+            m.userData.bodyMat.emissive.setHex(0x60a5fa);
+            m.userData.bodyMat.emissiveIntensity = 0.6;
+            m.userData.eye.material.color.setHex(0x60a5fa);
+            m.userData.halos.forEach(h => h.material.color.setHex(0x3b82f6));
+            m.position.set(-AIRSPACE_X * 0.7, 14, z);
+            scene.add(m);
+            patrols.push({ mesh: m, dir: 1, baseZ: z, t: Math.random() });
+        }
+        spawnPatrol(45);
+        spawnPatrol(75);
+
+        // ═══════════════════════════════════════════════════════
+        // INCOMING THREAT DRONES — continuous spawning from south
+        // ═══════════════════════════════════════════════════════
+        const contacts = [];
+        const MAX_CONTACTS = 12;
+
+        function spawnThreat() {
+            if (contacts.length >= MAX_CONTACTS) return;
+            const sizeRoll = Math.random();
+            const scale = sizeRoll < 0.6 ? 0.85 : (sizeRoll < 0.9 ? 1.0 : 1.2);
+            const mesh = makeDrone(scale);
+            const x = (Math.random() - 0.5) * AIRSPACE_X * 1.7;
+            const z = -180 - Math.random() * 30;
+            const y = 7 + Math.random() * 22;
+            mesh.position.set(x, y, z);
+            scene.add(mesh);
+
+            const speed = 0.10 + Math.random() * 0.06;
+            const lateral = (Math.random() - 0.5) * 0.35;
+            const vel = new THREE.Vector3(lateral, 0, 1).normalize().multiplyScalar(speed);
+            mesh.lookAt(mesh.position.clone().add(vel));
+
+            // Trail
+            const trailMax = 22;
+            const trailGeo = new THREE.BufferGeometry();
+            const trailPos = new Float32Array(trailMax * 3);
+            for (let k = 0; k < trailMax; k++) { trailPos[k*3] = x; trailPos[k*3+1] = y; trailPos[k*3+2] = z; }
+            trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+            const trailMat = new THREE.PointsMaterial({ color: 0x4a8060, size: 0.5, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+            const trail = new THREE.Points(trailGeo, trailMat);
+            scene.add(trail);
+
+            contacts.push({
+                mesh, vel, scale,
+                targeted: false,    // crossed warning line
+                killed: false,      // engaged kinetically
+                falling: false,
+                incursion: false,   // crossed kill line when protocol off
+                trail, trailGeo, trailPos, trailMat, trailMax, trailHistory: [mesh.position.clone()],
+                bornAt: 0, // set in animate
+            });
+        }
+
+        // Pre-populate the scene with a few drones in flight
+        for (let i = 0; i < 5; i++) spawnThreat();
+
+        // ═══════════════════════════════════════════════════════
+        // KILL EFFECTS — red kinetic beams from sensors to targets
+        // ═══════════════════════════════════════════════════════
+        const killBeams = [];
+        function executeKill(target) {
+            target.killed = true;
+            target.falling = true;
+            target.vel.set(target.vel.x * 0.2, -0.05, target.vel.z * 0.1);
+            // Find nearest sensor
+            let bestSensor = null, bestDist = Infinity;
+            for (const s of sensors) {
+                const d = s.pos.distanceTo(target.mesh.position);
+                if (d < bestDist) { bestDist = d; bestSensor = s; }
+            }
+            if (bestSensor) {
+                const beamGeo = new THREE.BufferGeometry().setFromPoints([bestSensor.pos.clone(), target.mesh.position.clone()]);
+                const beamMat = new THREE.LineBasicMaterial({ color: 0xff3030, transparent: true, opacity: 1.0 });
+                const beam = new THREE.Line(beamGeo, beamMat);
+                scene.add(beam);
+                killBeams.push({ beam, beamGeo, beamMat, target, sensor: bestSensor, born: clock.getElapsedTime(), life: 1.4 });
+            }
+            eliminatedTotal++;
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // STATE + CONTROLS
+        // ═══════════════════════════════════════════════════════
+        let protocolOn = true;
+        let speedMode = 'normal'; // 'normal' or 'fast'
+        let eliminatedTotal = 0;
+        let incursionTotal = 0;
+
+        function setProtocol(on) {
+            protocolOn = on;
+            const btn = document.getElementById('btn-protocol');
+            const chip = document.getElementById('chip-protocol');
+            const cnt = document.getElementById('cnt-protocol');
+            const status = document.getElementById('status-bar');
+            if (on) {
+                btn.classList.add('on'); btn.textContent = '⚡ TPO PROTOCOL: ON';
+                chip.classList.add('on'); cnt.textContent = 'ON';
+                status.textContent = 'SYS_STATUS: TPO PROTOCOL ACTIVE — KINETIC ENGAGEMENT ON SIGHT';
+                status.style.color = '#ef4444'; status.style.borderColor = '#ef444466';
+            } else {
+                btn.classList.remove('on'); btn.textContent = '⚠ TPO PROTOCOL: OFF';
+                chip.classList.remove('on'); cnt.textContent = 'OFF';
+                status.textContent = 'SYS_STATUS: TPO PROTOCOL OFFLINE — INCURSION RISK ACTIVE';
+                status.style.color = '#fbbf24'; status.style.borderColor = '#fbbf2466';
             }
         }
 
-        function update() {
-            targets.forEach(t => { t.x += t.vx; t.y += t.vy; if (t.x < 0 || t.x > window.innerWidth) t.vx *= -1; if (t.y < 0 || t.y > window.innerHeight - 70) t.vy *= -1; t.el.style.left = t.x + 'px'; t.el.style.top = t.y + 'px'; });
-            requestAnimationFrame(update);
+        function setSpeed(mode) {
+            speedMode = mode;
+            const btn = document.getElementById('btn-speed');
+            btn.textContent = mode === 'fast' ? '⏵⏵ SPEED: FAST' : '⏵ SPEED: NORMAL';
         }
 
-        window.onload = spawnSwarm;
+        function resetSector() {
+            contacts.forEach(c => { disposeGroup(c.mesh); if (c.trail) { disposeMesh(c.trail); scene.remove(c.trail); } });
+            contacts.length = 0;
+            killBeams.forEach(k => { if (k.beam) { disposeMesh(k.beam); scene.remove(k.beam); } });
+            killBeams.length = 0;
+            eliminatedTotal = 0; incursionTotal = 0;
+            for (let i = 0; i < 5; i++) spawnThreat();
+        }
+
+        document.getElementById('btn-protocol').addEventListener('click', () => setProtocol(!protocolOn));
+        document.getElementById('btn-speed').addEventListener('click', () => setSpeed(speedMode === 'normal' ? 'fast' : 'normal'));
+        document.getElementById('btn-reset').addEventListener('click', () => resetSector());
+
+        // ─── SIGN MOUSEOVER — bilingual popup ──────────────────
+        const raycaster = new THREE.Raycaster();
+        const mouseV = new THREE.Vector2();
+        const signPopup = document.getElementById('sign-popup');
+        let popupOn = false;
+        renderer.domElement.addEventListener('mousemove', (event) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouseV.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouseV.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            raycaster.setFromCamera(mouseV, camera);
+            const intersects = raycaster.intersectObjects(signMeshes, false);
+            const hovering = intersects.length > 0;
+            if (hovering && !popupOn) { signPopup.classList.add('visible'); popupOn = true; renderer.domElement.style.cursor = 'help'; }
+            else if (!hovering && popupOn) { signPopup.classList.remove('visible'); popupOn = false; renderer.domElement.style.cursor = ''; }
+        });
+        renderer.domElement.addEventListener('mouseleave', () => {
+            if (popupOn) { signPopup.classList.remove('visible'); popupOn = false; renderer.domElement.style.cursor = ''; }
+        });
+
+        function onResize() { width = host.clientWidth; height = host.clientHeight; renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); }
+        window.addEventListener('resize', onResize);
+
+        const cntEliminated = document.getElementById('cnt-eliminated');
+        const cntIncursion = document.getElementById('cnt-incursion');
+        const cntInRange = document.getElementById('cnt-inrange');
+
+        // ═══════════════════════════════════════════════════════
+        // ANIMATION LOOP
+        // ═══════════════════════════════════════════════════════
+        const clock = new THREE.Clock();
+        let spawnTimer = 0;
+
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+            const speedMult = speedMode === 'fast' ? 2.0 : 1.0;
+
+            // Spawn cadence
+            spawnTimer += dt;
+            const spawnInterval = speedMode === 'fast' ? 1.0 : 1.7;
+            if (spawnTimer > spawnInterval) { spawnTimer = 0; spawnThreat(); }
+
+            // Pulse the kill line
+            killLineGroup.children.forEach((c, idx) => {
+                if (c.material && idx === 2) {
+                    c.material.opacity = 0.85 + Math.sin(elapsed * 2.5) * 0.10;
+                }
+            });
+
+            // Rotate radar dishes
+            sensors.forEach(s => { if (s.dish) s.dish.rotation.y += 0.012; });
+
+            // Patrol drones — slow east-west sweep on US side
+            patrols.forEach((p, idx) => {
+                p.t += dt * 0.04 * (1 + idx * 0.2);
+                p.mesh.position.x = Math.sin(p.t) * (AIRSPACE_X * 0.7);
+                p.mesh.position.z = p.baseZ + Math.cos(p.t * 0.5) * 8;
+                p.mesh.position.y = 14 + Math.sin(elapsed * 2 + idx) * 0.4;
+                const next = new THREE.Vector3(Math.sin(p.t + 0.01) * (AIRSPACE_X * 0.7), p.mesh.position.y, p.baseZ);
+                p.mesh.lookAt(next);
+                p.mesh.userData.rotors.forEach(r => { r.rotation.y += 1.4; });
+            });
+
+            // Kill beams
+            for (let i = killBeams.length - 1; i >= 0; i--) {
+                const k = killBeams[i];
+                const age = elapsed - k.born;
+                if (age < 0.3) k.beamMat.opacity = 1.0;
+                else k.beamMat.opacity = Math.max(0, 1.0 - (age - 0.3) / k.life);
+                k.beamGeo.setFromPoints([k.sensor.pos.clone(), k.target.mesh.position.clone()]);
+                if (age > k.life) {
+                    disposeMesh(k.beam); scene.remove(k.beam);
+                    killBeams.splice(i, 1);
+                }
+            }
+
+            // Update incoming contacts
+            let inRangeCount = 0;
+            for (let i = contacts.length - 1; i >= 0; i--) {
+                const c = contacts[i];
+                if (!c.bornAt) c.bornAt = elapsed;
+                c.mesh.userData.rotors.forEach(r => { r.rotation.y += 1.5; });
+
+                // Apply velocity (with speed multiplier)
+                const dz = c.vel.z * speedMult;
+                const proposedPos = c.mesh.position.clone();
+                proposedPos.x += c.vel.x * speedMult;
+                proposedPos.y += c.vel.y * speedMult;
+                proposedPos.z += dz;
+
+                // Targeting: crossed warning line into kill zone
+                if (!c.targeted && proposedPos.z >= WARNING_LINE_Z) {
+                    c.targeted = true;
+                }
+
+                // Kill line crossing
+                if (!c.killed && !c.falling && proposedPos.z >= KILL_LINE_Z && c.mesh.position.z < KILL_LINE_Z) {
+                    if (protocolOn) {
+                        // Snap to just south of line and kill
+                        c.mesh.position.x = proposedPos.x;
+                        c.mesh.position.y = proposedPos.y;
+                        c.mesh.position.z = KILL_LINE_Z - 0.3;
+                        executeKill(c);
+                    } else {
+                        // PROTOCOL OFF — drone phases through, counts as incursion
+                        if (!c.incursion) { c.incursion = true; incursionTotal++; }
+                        c.mesh.position.copy(proposedPos);
+                    }
+                } else if (c.falling) {
+                    // Drone falling kinetically
+                    c.vel.y = THREE.MathUtils.lerp(c.vel.y, -0.32, 0.06);
+                    c.mesh.position.add(c.vel.clone().multiplyScalar(speedMult));
+                    c.mesh.rotation.z += 0.12;
+                    c.mesh.rotation.x += 0.07;
+                } else {
+                    c.mesh.position.copy(proposedPos);
+                    if (c.vel.lengthSq() > 0.001) c.mesh.lookAt(c.mesh.position.clone().add(c.vel));
+                }
+
+                // Visual state
+                const bodyMat = c.mesh.userData.bodyMat;
+                if (c.killed && !c.falling) {
+                    // shouldn't happen but safe
+                } else if (c.falling) {
+                    // Already on the way down — keep red glow until crash
+                    const blink = (Math.sin(elapsed * 12) + 1) * 0.5;
+                    bodyMat.color.setHex(0xef4444);
+                    bodyMat.emissive.setHex(0xff5050);
+                    bodyMat.emissiveIntensity = 0.5 + blink * 0.5;
+                    c.mesh.userData.halos.forEach(h => { h.material.color.setHex(0xef4444); h.material.opacity = 0.4; });
+                    c.trailMat.color.setHex(0xff5050);
+                    c.trailMat.opacity = THREE.MathUtils.lerp(c.trailMat.opacity, 0.7, 0.15);
+                } else if (c.targeted) {
+                    // In kill zone — red strobing
+                    const strobe = (Math.sin(elapsed * 5 + c.mesh.position.x * 0.01) + 1) * 0.5;
+                    bodyMat.color.setHex(0xef4444);
+                    bodyMat.emissive.setHex(0xff5050);
+                    bodyMat.emissiveIntensity = 0.55 + strobe * 0.6;
+                    if (c.mesh.userData.eye) c.mesh.userData.eye.material.color.setHex(0xff8080);
+                    c.mesh.userData.halos.forEach(h => { h.material.color.setHex(0xef4444); h.material.opacity = 0.3 + strobe * 0.18; });
+                    c.trailMat.color.setHex(0xef4444);
+                    c.trailMat.opacity = THREE.MathUtils.lerp(c.trailMat.opacity, 0.55, 0.10);
+                    inRangeCount++;
+                } else {
+                    // Not yet targeted — gray-green raw radar look
+                    bodyMat.color.setHex(0x44665a);
+                    bodyMat.emissive.setHex(0x4a8060);
+                    bodyMat.emissiveIntensity = 0.45;
+                    if (c.mesh.userData.eye) c.mesh.userData.eye.material.color.setHex(0x80a890);
+                    c.mesh.userData.halos.forEach(h => { h.material.color.setHex(0x4a8060); h.material.opacity = 0.25; });
+                    c.trailMat.color.setHex(0x4a8060);
+                    c.trailMat.opacity = THREE.MathUtils.lerp(c.trailMat.opacity, 0.18, 0.08);
+                }
+
+                // Trail update
+                c.trailHistory.unshift(c.mesh.position.clone());
+                if (c.trailHistory.length > c.trailMax) c.trailHistory.length = c.trailMax;
+                for (let j = 0; j < c.trailMax; j++) {
+                    const pt = c.trailHistory[j] || c.mesh.position;
+                    c.trailPos[j*3] = pt.x; c.trailPos[j*3+1] = pt.y; c.trailPos[j*3+2] = pt.z;
+                }
+                c.trailGeo.attributes.position.needsUpdate = true;
+
+                // Despawn conditions
+                let despawn = false;
+                if (c.falling && c.mesh.position.y < 0.4) despawn = true;
+                if (c.incursion && c.mesh.position.z > 110) despawn = true;
+                if (Math.abs(c.mesh.position.x) > AIRSPACE_X + 80) despawn = true;
+                if (despawn) {
+                    disposeGroup(c.mesh);
+                    if (c.trail) { disposeMesh(c.trail); scene.remove(c.trail); }
+                    contacts.splice(i, 1);
+                }
+            }
+
+            cntEliminated.textContent = eliminatedTotal;
+            cntIncursion.textContent = incursionTotal;
+            cntInRange.textContent = inRangeCount;
+
+            // Camera — slow lateral drift, locked oblique on US side
+            const drift = elapsed * 0.011;
+            camera.position.x = THREE.MathUtils.lerp(camera.position.x, Math.sin(drift) * 40, 0.02);
+            camera.position.y = THREE.MathUtils.lerp(camera.position.y, 50, 0.02);
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, 95 + Math.cos(drift) * 8, 0.02);
+            camera.lookAt(0, 8, -50);
+
+            stars.rotation.y += 0.00006;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    })();
     </script>
 </body>
 </html>

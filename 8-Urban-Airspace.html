@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Urban Airspace — Interactive Sandbox</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0a1a2e 0%, #020617 100%); }
+        #three-canvas-host { position: absolute; inset: 0; }
+        #three-canvas-host canvas { display: block; width: 100% !important; height: 100% !important; }
+
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.75); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #06b6d4; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); }
+
+        #phase-info { position: absolute; top: 70px; left: 20px; background: rgba(15,23,42,0.85); border: 1px solid #1e293b; border-left: 3px solid #06b6d4; padding: 14px 20px 14px 18px; z-index: 100; max-width: 380px; backdrop-filter: blur(4px); }
+        .phase-num { font-family: 'Courier New', monospace; font-size: 10px; color: #64748b; letter-spacing: 0.3em; margin-bottom: 6px; }
+        .phase-title { font-size: 17px; font-weight: 300; letter-spacing: 0.02em; color: #e2e8f0; line-height: 1.2; }
+        .phase-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; letter-spacing: 0.04em; }
+
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #06b6d4; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #64748b; margin-top: 4px; }
+
+        #config-panel { position: absolute; top: 20px; right: 20px; width: 280px; max-height: calc(100% - 40px); background: rgba(15,23,42,0.95); border: 1px solid #06b6d4; border-radius: 4px; z-index: 200; backdrop-filter: blur(6px); display: flex; flex-direction: column; box-shadow: 0 0 20px rgba(6,182,212,0.15); }
+        #config-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #1e293b; cursor: pointer; user-select: none; }
+        #config-header span { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.25em; color: #06b6d4; font-weight: bold; }
+        #config-toggle { background: none; border: 1px solid #334155; color: #06b6d4; width: 22px; height: 22px; border-radius: 3px; font-size: 14px; cursor: pointer; padding: 0; line-height: 1; display: flex; align-items: center; justify-content: center; }
+        #config-toggle:hover { background: rgba(6,182,212,0.1); }
+        #config-body { padding: 14px 16px 16px; overflow-y: auto; }
+        #config-panel.collapsed #config-body { display: none; }
+        .config-section { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #1e293b; }
+        .config-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .config-label { font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.2em; color: #94a3b8; margin-bottom: 10px; font-weight: bold; }
+        .config-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; color: #cbd5e1; font-family: 'Courier New', monospace; }
+        .config-row > span:first-child { flex: 1; color: #94a3b8; }
+        .config-row input[type=range] { flex: 1.3; height: 4px; -webkit-appearance: none; background: #1e293b; border-radius: 2px; outline: none; cursor: pointer; }
+        .config-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #06b6d4; cursor: pointer; box-shadow: 0 0 6px rgba(6,182,212,0.8); }
+        .config-row input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #06b6d4; cursor: pointer; border: none; box-shadow: 0 0 6px rgba(6,182,212,0.8); }
+        .config-val { width: 30px; text-align: right; color: #06b6d4; font-weight: bold; font-family: 'Courier New', monospace; }
+        .op-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11px; color: #cbd5e1; font-family: 'Courier New', monospace; }
+        .op-row input[type=checkbox] { accent-color: #06b6d4; cursor: pointer; }
+        .op-row label { flex: 1; cursor: pointer; }
+        .op-row input[type=number] { width: 40px; background: #0f172a; border: 1px solid #334155; color: #06b6d4; font-family: 'Courier New', monospace; font-size: 11px; padding: 2px 4px; border-radius: 3px; text-align: center; }
+        .op-row input[type=number]:focus { outline: none; border-color: #06b6d4; }
+        #cfg-regen { width: 100%; background: rgba(6,182,212,0.15); border: 1px solid #06b6d4; color: #06b6d4; padding: 10px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.2em; font-weight: bold; cursor: pointer; border-radius: 3px; transition: all 0.2s; margin-top: 4px; }
+        #cfg-regen:hover { background: rgba(6,182,212,0.3); box-shadow: 0 0 12px rgba(6,182,212,0.4); }
+        #cfg-regen:active { transform: scale(0.98); }
+
+        #legend { position: absolute; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 10px 14px; backdrop-filter: blur(4px); }
+        .legend-row { display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.1em; color: #cbd5e1; }
+        .legend-swatch { width: 14px; height: 14px; border-radius: 3px; }
+
+        #phase-dots { position: absolute; bottom: 24px; right: 20px; display: flex; gap: 6px; z-index: 100; }
+        .phase-dot { width: 28px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; cursor: pointer; transition: all 0.3s; border: none; padding: 0; }
+        .phase-dot.active { background: #06b6d4; box-shadow: 0 0 10px rgba(6,182,212,0.7); }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: center; gap: 10px; z-index: 1000; padding: 0 20px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 12px 18px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.active { background: rgba(6,182,212,0.2); border-color: #06b6d4; color: #06b6d4; box-shadow: 0 0 15px rgba(6,182,212,0.4); }
+        .auto-btn { margin-left: auto; border-color: #10b981; color: #10b981; }
+        .auto-btn.on { background: rgba(16,185,129,0.15); box-shadow: 0 0 15px rgba(16,185,129,0.3); }
+
+        @media (max-width: 900px) {
+            #config-panel { width: 240px; }
+            #phase-info { max-width: 50%; padding: 10px 14px; }
+            .phase-title { font-size: 14px; }
+        }
+        @media (max-width: 600px) {
+            #config-panel { display: none; }
+            #legend { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene-container">
+        <div id="three-canvas-host"></div>
+
+        <div id="status-bar">SYS_STATUS: URBAN AIRSPACE — UNCOORDINATED TRAFFIC DETECTED</div>
+
+        <div id="phase-info">
+            <div class="phase-num" id="phase-num">PHASE 01 / 04</div>
+            <div class="phase-title" id="phase-title">Today — drones blind to the city below</div>
+            <div class="phase-sub" id="phase-sub">No registry · no shrouds · no coordination</div>
+        </div>
+
+        <div id="brand-mark">
+            <div class="brand-title">THE PECKING ORDER</div>
+            <div class="brand-sub">URBAN MODE · SANDBOX</div>
+        </div>
+
+        <div id="config-panel">
+            <div id="config-header">
+                <span>AIRSPACE CONFIG</span>
+                <button id="config-toggle" aria-label="Toggle config">−</button>
+            </div>
+            <div id="config-body">
+                <div class="config-section">
+                    <div class="config-label">BUILDINGS</div>
+                    <div class="config-row">
+                        <span>Count</span>
+                        <input type="range" min="0" max="100" value="46" id="cfg-bld-count">
+                        <span class="config-val" id="val-bld-count">46</span>
+                    </div>
+                    <div class="config-row">
+                        <span>Max Height</span>
+                        <input type="range" min="15" max="80" value="54" id="cfg-bld-height">
+                        <span class="config-val" id="val-bld-height">54</span>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <div class="config-label">DRONES (P4 COMMERCIAL)</div>
+                    <div class="config-row">
+                        <span>Count</span>
+                        <input type="range" min="0" max="30" value="9" id="cfg-drn-count">
+                        <span class="config-val" id="val-drn-count">9</span>
+                    </div>
+                </div>
+
+                <div class="config-section">
+                    <div class="config-label">MANNED OPERATORS</div>
+                    <div class="op-row">
+                        <input type="checkbox" id="op-balloon" checked>
+                        <label for="op-balloon">Hot Air Balloons</label>
+                        <input type="number" min="0" max="6" value="2" id="op-balloon-n">
+                    </div>
+                    <div class="op-row">
+                        <input type="checkbox" id="op-plane" checked>
+                        <label for="op-plane">General Aviation</label>
+                        <input type="number" min="0" max="6" value="2" id="op-plane-n">
+                    </div>
+                    <div class="op-row">
+                        <input type="checkbox" id="op-glider">
+                        <label for="op-glider">Gliders</label>
+                        <input type="number" min="0" max="4" value="1" id="op-glider-n">
+                    </div>
+                    <div class="op-row">
+                        <input type="checkbox" id="op-heli" checked>
+                        <label for="op-heli">Helicopters</label>
+                        <input type="number" min="0" max="4" value="1" id="op-heli-n">
+                    </div>
+                </div>
+
+                <button id="cfg-regen">▶ REGENERATE AIRSPACE</button>
+            </div>
+        </div>
+
+        <div id="legend">
+            <div class="legend-row"><div class="legend-swatch" style="background:#06b6d4;opacity:0.7"></div>STATIC SHROUD — BUILDINGS</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#ef4444;opacity:0.7"></div>APPROACH CORRIDOR — AIRPORT</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#f59e0b;opacity:0.7"></div>DYNAMIC SHROUD — DRONES + MANNED</div>
+        </div>
+
+        <div id="phase-dots">
+            <button class="phase-dot active" data-phase="1"></button>
+            <button class="phase-dot" data-phase="2"></button>
+            <button class="phase-dot" data-phase="3"></button>
+            <button class="phase-dot" data-phase="4"></button>
+        </div>
+    </div>
+
+    <div id="controls">
+        <button class="step-btn active" data-phase="1">1. Uncoordinated</button>
+        <button class="step-btn" data-phase="2">2. Static Infra Lock</button>
+        <button class="step-btn" data-phase="3">3. Dynamic Agents</button>
+        <button class="step-btn" data-phase="4">4. Clean Routes</button>
+        <button class="step-btn auto-btn on" id="auto-btn">■ AUTO-CYCLE: ON</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+    (function() {
+        const host = document.getElementById('three-canvas-host');
+        let width = host.clientWidth, height = host.clientHeight;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.05;
+        host.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a1a2e, 0.0028);
+
+        const skyMat = new THREE.ShaderMaterial({
+            side: THREE.BackSide, depthWrite: false,
+            uniforms: { topColor: {value: new THREE.Color(0x020617)}, midColor: {value: new THREE.Color(0x0a1a2e)}, horizonColor: {value: new THREE.Color(0x1d4870)}, groundColor: {value: new THREE.Color(0x000814)} },
+            vertexShader: `varying vec3 vWP; void main() { vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+            fragmentShader: `uniform vec3 topColor, midColor, horizonColor, groundColor; varying vec3 vWP;
+                void main() { float h = normalize(vWP).y; vec3 col;
+                    if (h > 0.0) { col = mix(horizonColor, midColor, smoothstep(0.0, 0.5, h)); col = mix(col, topColor, smoothstep(0.4, 1.0, h)); }
+                    else { col = mix(horizonColor, groundColor, smoothstep(0.0, -0.4, h)); }
+                    gl_FragColor = vec4(col, 1.0); }`,
+        });
+        scene.add(new THREE.Mesh(new THREE.SphereGeometry(2000, 32, 16), skyMat));
+
+        const starsGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(800 * 3);
+        for (let i = 0; i < 800; i++) {
+            const r = 1500, theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 0.7 + 0.05);
+            starPos[i*3] = r*Math.sin(phi)*Math.cos(theta);
+            starPos[i*3+1] = r*Math.cos(phi);
+            starPos[i*3+2] = r*Math.sin(phi)*Math.sin(theta);
+        }
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xb8d4f0, size: 1.2, sizeAttenuation: false, transparent: true, opacity: 0.6 }));
+        scene.add(stars);
+
+        const moon = new THREE.DirectionalLight(0xb8c6dc, 0.55); moon.position.set(-80, 100, 50); scene.add(moon);
+        scene.add(new THREE.HemisphereLight(0x4a6fa5, 0x0a1020, 0.35));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.18));
+        for (let i = 0; i < 4; i++) {
+            const light = new THREE.PointLight(0x06b6d4, 0.4, 80);
+            light.position.set((Math.random()-0.5)*200, 2, (Math.random()-0.5)*200);
+            scene.add(light);
+        }
+
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x081020, roughness: 0.95, emissive: 0x020a16, emissiveIntensity: 0.3 }));
+        ground.rotation.x = -Math.PI / 2; scene.add(ground);
+        const grid = new THREE.GridHelper(800, 40, 0x06b6d4, 0x0c4a5e);
+        grid.position.y = 0.1; grid.material.transparent = true; grid.material.opacity = 0.22; scene.add(grid);
+
+        const camera = new THREE.PerspectiveCamera(45, width/height, 0.5, 3500);
+        camera.position.set(140, 55, 160); camera.lookAt(0, 20, 0);
+
+        function disposeMesh(m) {
+            if (m.geometry) m.geometry.dispose();
+            if (m.material) {
+                if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose());
+                else m.material.dispose();
+            }
+        }
+        function disposeGroup(g) {
+            g.traverse(c => { if (c.isMesh || c.isLine || c.isPoints) disposeMesh(c); });
+            if (g.parent) g.parent.remove(g);
+        }
+
+        function makeDynamicShroud() {
+            const g = new THREE.Group();
+            g.add(new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.BackSide })));
+            g.add(new THREE.Mesh(new THREE.SphereGeometry(0.85, 24, 18), new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false })));
+            g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(1.0, 1), new THREE.MeshBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.35, wireframe: true, depthWrite: false })));
+            g.scale.setScalar(0.001); return g;
+        }
+        function makePeckTag() {
+            const g = new THREE.Group();
+            g.add(new THREE.Mesh(new THREE.SphereGeometry(0.45, 14, 10), new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x10b981, emissiveIntensity: 1.4, roughness: 0.4 })));
+            g.add(new THREE.Mesh(new THREE.SphereGeometry(0.85, 14, 10), new THREE.MeshBasicMaterial({ color: 0x4ee0a8, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })));
+            g.scale.setScalar(0.001); return g;
+        }
+
+        function makeBuilding(x, z, w, h, d) {
+            const g = new THREE.Group();
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1a2436, roughness: 0.7, metalness: 0.3, emissive: 0x050a14, emissiveIntensity: 0.4 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
+            body.position.y = h / 2; g.add(body);
+            const winMat = new THREE.MeshBasicMaterial({ color: 0xffd680 });
+            const winMatCool = new THREE.MeshBasicMaterial({ color: 0x88c8ff });
+            const fl = Math.max(2, Math.floor(h / 3));
+            const wpf = Math.max(2, Math.floor(w / 2));
+            for (let f = 0; f < fl; f++) for (let i = 0; i < wpf; i++) {
+                if (Math.random() > 0.55) {
+                    const lit = Math.random() > 0.3 ? winMat : winMatCool;
+                    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.8), lit);
+                    win.position.set(-w/2 + 0.6 + i*(w-1.2)/Math.max(1,wpf-1), 1 + f*(h-2)/Math.max(1,fl-1), d/2 + 0.01);
+                    g.add(win);
+                    const win2 = win.clone(); win2.position.z = -d/2 - 0.01; win2.rotation.y = Math.PI; g.add(win2);
+                }
+            }
+            const wpfs = Math.max(2, Math.floor(d / 2));
+            for (let f = 0; f < fl; f++) for (let i = 0; i < wpfs; i++) {
+                if (Math.random() > 0.55) {
+                    const lit = Math.random() > 0.3 ? winMat : winMatCool;
+                    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.8), lit);
+                    win.position.set(w/2 + 0.01, 1 + f*(h-2)/Math.max(1,fl-1), -d/2 + 0.6 + i*(d-1.2)/Math.max(1,wpfs-1));
+                    win.rotation.y = Math.PI/2; g.add(win);
+                    const win2 = win.clone(); win2.position.x = -w/2 - 0.01; win2.rotation.y = -Math.PI/2; g.add(win2);
+                }
+            }
+            if (h > 28) {
+                const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 4, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+                ant.position.y = h + 2; g.add(ant);
+            }
+            g.position.set(x, 0, z); g.userData.bounds = { x, z, w, h, d }; scene.add(g);
+
+            const shroudW = w + 4, shroudH = h + 6, shroudD = d + 4;
+            const shroud = new THREE.Group();
+            const shrInner = new THREE.Mesh(new THREE.BoxGeometry(shroudW, shroudH, shroudD), new THREE.MeshBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false }));
+            shrInner.position.y = shroudH / 2 - 3; shroud.add(shrInner);
+            const edges = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(shroudW, shroudH, shroudD)), new THREE.LineBasicMaterial({ color: 0x06b6d4, transparent: true, opacity: 0.45 }));
+            edges.position.y = shroudH / 2 - 3; shroud.add(edges);
+            shroud.position.set(x, 0, z); shroud.scale.setScalar(0.001);
+            scene.add(shroud);
+            return { building: g, shroud };
+        }
+
+        const airportPos = new THREE.Vector3(110, 0, -60);
+        let airportGroup = null, airportShroud = null, approachShrouds = [];
+
+        function buildAirport() {
+            const g = new THREE.Group();
+            const runway = new THREE.Mesh(new THREE.BoxGeometry(80, 0.3, 8), new THREE.MeshStandardMaterial({ color: 0x0a0e15, roughness: 0.9, emissive: 0x05080d, emissiveIntensity: 0.3 }));
+            runway.position.set(0, 0.2, 0); g.add(runway);
+            for (let i = -38; i <= 38; i += 4) {
+                const light = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffd060 }));
+                light.position.set(i, 0.4, 0); g.add(light);
+            }
+            for (let side = -1; side <= 1; side += 2) for (let i = -3; i <= 3; i += 1.5) {
+                const tl = new THREE.Mesh(new THREE.SphereGeometry(0.18, 6, 6), new THREE.MeshBasicMaterial({ color: 0x10b981 }));
+                tl.position.set(side * 40, 0.4, i); g.add(tl);
+            }
+            const terminal = new THREE.Mesh(new THREE.BoxGeometry(40, 7, 14), new THREE.MeshStandardMaterial({ color: 0x1f2a3d, roughness: 0.6, metalness: 0.2, emissive: 0x080d18, emissiveIntensity: 0.3 }));
+            terminal.position.set(0, 3.5, 16); g.add(terminal);
+            const termWin = new THREE.Mesh(new THREE.BoxGeometry(38, 1.6, 0.3), new THREE.MeshBasicMaterial({ color: 0xffd680 }));
+            termWin.position.set(0, 4, 16 - 7.05); g.add(termWin);
+            const termWin2 = termWin.clone(); termWin2.position.z = 16 + 7.05; g.add(termWin2);
+            const towerBase = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 2.0, 16, 12), new THREE.MeshStandardMaterial({ color: 0x1f2a3d, roughness: 0.6 }));
+            towerBase.position.set(-25, 8, 18); g.add(towerBase);
+            const towerCab = new THREE.Mesh(new THREE.CylinderGeometry(3, 2.2, 3, 12), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.75, emissive: 0x06b6d4, emissiveIntensity: 0.6 }));
+            towerCab.position.set(-25, 17.5, 18); g.add(towerCab);
+            const towerRoof = new THREE.Mesh(new THREE.ConeGeometry(3.2, 1.2, 12), new THREE.MeshStandardMaterial({ color: 0x0a1525 }));
+            towerRoof.position.set(-25, 19.6, 18); g.add(towerRoof);
+            const apron = new THREE.Mesh(new THREE.BoxGeometry(30, 0.2, 10), new THREE.MeshStandardMaterial({ color: 0x0d1320, roughness: 0.95 }));
+            apron.position.set(15, 0.15, 12); g.add(apron);
+            g.position.copy(airportPos); scene.add(g);
+            airportGroup = g;
+
+            const portShroud = new THREE.Group();
+            const portInner = new THREE.Mesh(new THREE.CylinderGeometry(60, 65, 18, 32, 1, true), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.07, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+            portInner.position.y = 9; portShroud.add(portInner);
+            const portTop = new THREE.Mesh(new THREE.CircleGeometry(60, 32), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+            portTop.rotation.x = -Math.PI/2; portTop.position.y = 18; portShroud.add(portTop);
+            const portEdge = new THREE.Mesh(new THREE.TorusGeometry(60, 0.15, 8, 48), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.5 }));
+            portEdge.rotation.x = Math.PI/2; portEdge.position.y = 18; portShroud.add(portEdge);
+            portShroud.position.copy(airportPos); portShroud.scale.setScalar(0.001);
+            scene.add(portShroud); airportShroud = portShroud;
+
+            for (let dir = -1; dir <= 1; dir += 2) {
+                const corridor = new THREE.Group();
+                const cone = new THREE.Mesh(new THREE.ConeGeometry(25, 80, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+                cone.rotation.z = -dir * Math.PI/2;
+                cone.position.set(dir * 80, 80/2 * Math.sin(0.0524) + 2, 0);
+                cone.rotation.x = dir * 0.0524;
+                corridor.add(cone);
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(25, 0.12, 8, 32), new THREE.MeshBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.5 }));
+                ring.position.set(dir * 120, 80 * Math.sin(0.0524) + 2, 0); ring.rotation.y = dir * Math.PI/2;
+                corridor.add(ring);
+                corridor.position.copy(airportPos); corridor.scale.setScalar(0.001);
+                scene.add(corridor); approachShrouds.push(corridor);
+            }
+        }
+
+        function makeDroneMesh() {
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.8), new THREE.MeshStandardMaterial({ color: 0x0a1525, roughness: 0.4, metalness: 0.7, emissive: 0x3b82f6, emissiveIntensity: 0.45 }));
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), new THREE.MeshBasicMaterial({ color: 0x60a5fa }));
+            eye.position.y = -0.2; g.add(eye);
+            const armPositions = [[0.6,0,0.6],[-0.6,0,0.6],[0.6,0,-0.6],[-0.6,0,-0.6]];
+            const rotors = [];
+            armPositions.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 0.16, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0], 0.1, p[2]); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.03, 0.07), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.4 }));
+                rotor.position.set(p[0], 0.24, p[2]); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.55, 14), new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0], 0.24, p[2]); halo.rotation.x = -Math.PI/2; g.add(halo);
+            });
+            g.userData.rotors = rotors;
+            return g;
+        }
+
+        function makeBalloon(x, y, z) {
+            const g = new THREE.Group();
+            const points = [];
+            for (let i = 0; i <= 20; i++) {
+                const t = i / 20, angle = t * Math.PI;
+                const r = Math.sin(angle) * 4.5 * (1.0 - 0.15 * Math.cos(angle));
+                const yy = -Math.cos(angle) * 5.5 + 1;
+                points.push(new THREE.Vector2(r, yy));
+            }
+            const envelope = new THREE.Mesh(new THREE.LatheGeometry(points, 32), new THREE.MeshStandardMaterial({ color: 0x991b1b, roughness: 0.5, metalness: 0.05, emissive: 0x3a0a0a, emissiveIntensity: 0.3 }));
+            g.add(envelope);
+            const band = new THREE.Mesh(new THREE.TorusGeometry(4.4, 0.18, 8, 32), new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.4, emissive: 0x4a3000, emissiveIntensity: 0.4 }));
+            band.rotation.x = Math.PI / 2; band.position.y = -0.5; g.add(band);
+            const basket = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 2.0), new THREE.MeshStandardMaterial({ color: 0x3a2515, roughness: 0.95 }));
+            basket.position.y = -7.5; g.add(basket);
+            for (let i = 0; i < 4; i++) {
+                const ang = (i / 4) * Math.PI * 2;
+                const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 4.5, 6), new THREE.MeshStandardMaterial({ color: 0x1a1008 }));
+                rope.position.set(Math.cos(ang) * 0.9, -5.2, Math.sin(ang) * 0.9); g.add(rope);
+            }
+            const flame = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.6, 8), new THREE.MeshBasicMaterial({ color: 0xffb040, transparent: true, opacity: 0.9 }));
+            flame.position.y = -6.6; g.add(flame);
+            g.position.set(x, y, z);
+            g.userData.bob = { base: y, phase: Math.random() * Math.PI * 2, slow: true };
+            const tag = makePeckTag(); tag.position.set(0, 5.2, 0); g.add(tag);
+            const shroud = makeDynamicShroud(); shroud.position.copy(g.position); shroud.userData.targetRadius = 7.5; scene.add(shroud);
+            scene.add(g);
+            return { group: g, tag, shroud, kind: 'balloon' };
+        }
+
+        function makePlane(x, y, z, color) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.5, emissive: 0x101820, emissiveIntensity: 0.3 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.25, 4.5, 12), mat); body.rotation.z = Math.PI / 2; g.add(body);
+            const nose = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.7, 12), mat); nose.position.x = 2.55; nose.rotation.z = -Math.PI / 2; g.add(nose);
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 6.5), mat); wing.position.x = 0.2; g.add(wing);
+            const tailV = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.9, 0.08), mat); tailV.position.set(-1.9, 0.5, 0); g.add(tailV);
+            const tailH = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.08, 1.6), mat); tailH.position.set(-1.9, 0.0, 0); g.add(tailH);
+            const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.7, emissive: 0x06b6d4, emissiveIntensity: 0.3 }));
+            canopy.position.set(0.7, 0.3, 0); g.add(canopy);
+            const prop = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.6, 0.05), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            prop.position.x = 2.95; g.add(prop);
+            g.userData.prop = prop;
+            g.position.set(x, y, z);
+            g.userData.bob = { base: y, phase: Math.random() * Math.PI * 2 };
+            g.rotation.y = Math.random() * Math.PI * 2;
+            const tag = makePeckTag(); tag.position.set(-0.3, 1.0, 0); g.add(tag);
+            const shroud = makeDynamicShroud(); shroud.position.copy(g.position); shroud.userData.targetRadius = 6.5; shroud.userData.elongated = true; scene.add(shroud);
+            scene.add(g);
+            return { group: g, tag, shroud, kind: 'plane' };
+        }
+
+        function makeGlider(x, y, z) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xc8d0dc, roughness: 0.5, emissive: 0x1a2030, emissiveIntensity: 0.2 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.12, 4.0, 10), mat); body.rotation.z = Math.PI / 2; g.add(body);
+            const wing = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.05, 11.0), mat); g.add(wing);
+            const tailV = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.05), mat); tailV.position.set(-1.7, 0.35, 0); g.add(tailV);
+            const tailH = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 1.4), mat); tailH.position.set(-1.7, 0.05, 0); g.add(tailH);
+            const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.75, emissive: 0x06b6d4, emissiveIntensity: 0.3 }));
+            canopy.position.set(0.5, 0.18, 0); g.add(canopy);
+            g.position.set(x, y, z);
+            g.rotation.y = Math.random() * Math.PI * 2;
+            g.userData.bob = { base: y, phase: Math.random() * Math.PI * 2 };
+            const tag = makePeckTag(); tag.position.set(-0.2, 0.9, 0); g.add(tag);
+            const shroud = makeDynamicShroud(); shroud.position.copy(g.position); shroud.userData.targetRadius = 7.0; shroud.userData.elongated = true; scene.add(shroud);
+            scene.add(g);
+            return { group: g, tag, shroud, kind: 'glider' };
+        }
+
+        function makeHelicopter(x, y, z, color) {
+            const g = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.5, emissive: 0x101820, emissiveIntensity: 0.3 });
+            const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 14, 10), mat);
+            body.scale.set(1.4, 0.85, 0.85); g.add(body);
+            const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI*2, 0, Math.PI/2), new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.7, emissive: 0x06b6d4, emissiveIntensity: 0.3 }));
+            cockpit.position.set(0.5, 0.1, 0); cockpit.rotation.z = Math.PI / 2; g.add(cockpit);
+            const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.06, 2.5, 8), mat);
+            boom.rotation.z = Math.PI / 2; boom.position.set(-1.5, 0.1, 0); g.add(boom);
+            const tailRotor = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1, 0.08), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5 }));
+            tailRotor.position.set(-2.7, 0.1, 0.1); g.add(tailRotor);
+            g.userData.tailRotor = tailRotor;
+            const fin = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.05), mat);
+            fin.position.set(-2.6, 0.5, 0); g.add(fin);
+            const rotorMast = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 6), mat);
+            rotorMast.position.y = 0.85; g.add(rotorMast);
+            const rotor = new THREE.Group();
+            const blade1 = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.04, 0.15), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5 }));
+            rotor.add(blade1);
+            const blade2 = blade1.clone(); blade2.rotation.y = Math.PI / 2; rotor.add(blade2);
+            rotor.position.y = 1.05; g.add(rotor);
+            g.userData.rotor = rotor;
+            const skidL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.8, 6), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+            skidL.rotation.z = Math.PI / 2; skidL.position.set(0, -0.55, 0.4); g.add(skidL);
+            const skidR = skidL.clone(); skidR.position.z = -0.4; g.add(skidR);
+            g.position.set(x, y, z);
+            g.rotation.y = Math.random() * Math.PI * 2;
+            g.userData.bob = { base: y, phase: Math.random() * Math.PI * 2 };
+            const tag = makePeckTag(); tag.position.set(0, 1.5, 0); g.add(tag);
+            const shroud = makeDynamicShroud(); shroud.position.copy(g.position); shroud.userData.targetRadius = 6.0; scene.add(shroud);
+            scene.add(g);
+            return { group: g, tag, shroud, kind: 'helicopter' };
+        }
+
+        function randomDronePath() {
+            const startSide = Math.floor(Math.random() * 4);
+            const endSide = (startSide + 2) % 4;
+            // High lane: above tallest building + building shroud (+6) + drone shroud (+4) + visual buffer
+            const minAlt = maxBuildingHeightInScene + 16;
+            const altRange = 18;
+            const sidePoint = (s) => {
+                const r = 180;
+                if (s === 0) return new THREE.Vector3(-r, 0, (Math.random()-0.5)*200);
+                if (s === 1) return new THREE.Vector3((Math.random()-0.5)*200, 0, -r);
+                if (s === 2) return new THREE.Vector3(r, 0, (Math.random()-0.5)*200);
+                return new THREE.Vector3((Math.random()-0.5)*200, 0, r);
+            };
+            const start = sidePoint(startSide); const end = sidePoint(endSide);
+            const pts = [start];
+            for (let i = 1; i <= 4; i++) {
+                const t = i / 5;
+                const base = new THREE.Vector3().lerpVectors(start, end, t);
+                base.x += (Math.random() - 0.5) * 30; base.z += (Math.random() - 0.5) * 30;
+                base.y = minAlt + Math.random() * altRange;
+                const dx = base.x - airportPos.x, dz = base.z - airportPos.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                if (dist < 75) { const push = (75 - dist) / dist; base.x += dx * push; base.z += dz * push; }
+                // Belt and suspenders: if this waypoint somehow ended up over a taller building, lift further
+                const bh = buildingHeightAt(base.x, base.z, 6);
+                if (bh > 0 && base.y < bh + 16) base.y = bh + 16;
+                pts.push(base);
+            }
+            start.y = minAlt + Math.random() * altRange;
+            end.y = minAlt + Math.random() * altRange;
+            pts.push(end);
+            return new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.4);
+        }
+        function naiveDronePath() {
+            const startSide = Math.floor(Math.random() * 4);
+            const endSide = (startSide + 2) % 4;
+            const sp = (s) => {
+                const r = 180;
+                if (s === 0) return new THREE.Vector3(-r, 30 + Math.random()*15, (Math.random()-0.5)*180);
+                if (s === 1) return new THREE.Vector3((Math.random()-0.5)*180, 30 + Math.random()*15, -r);
+                if (s === 2) return new THREE.Vector3(r, 30 + Math.random()*15, (Math.random()-0.5)*180);
+                return new THREE.Vector3((Math.random()-0.5)*180, 30 + Math.random()*15, r);
+            };
+            return new THREE.CatmullRomCurve3([sp(startSide), sp(endSide)], false, 'catmullrom', 0.3);
+        }
+
+        // Full-sky path — for classes (P2, P3) with no altitude restriction.
+        // Waypoints range from just-above-buildings up to ~110 units, freely crossing the LCR corridor.
+        function makeFullSkyPath() {
+            const startSide = Math.floor(Math.random() * 4);
+            const endSide = (startSide + 2) % 4;
+            const sidePoint = (s) => {
+                const r = 180;
+                if (s === 0) return new THREE.Vector3(-r, 0, (Math.random()-0.5)*200);
+                if (s === 1) return new THREE.Vector3((Math.random()-0.5)*200, 0, -r);
+                if (s === 2) return new THREE.Vector3(r, 0, (Math.random()-0.5)*200);
+                return new THREE.Vector3((Math.random()-0.5)*200, 0, r);
+            };
+            const minAlt = Math.max(maxBuildingHeightInScene + 12, 22);
+            const maxAlt = 105;
+            const start = sidePoint(startSide); const end = sidePoint(endSide);
+            const pts = [start];
+            for (let i = 1; i <= 4; i++) {
+                const t = i / 5;
+                const base = new THREE.Vector3().lerpVectors(start, end, t);
+                base.x += (Math.random() - 0.5) * 30; base.z += (Math.random() - 0.5) * 30;
+                base.y = minAlt + Math.random() * (maxAlt - minAlt);
+                const dx = base.x - airportPos.x, dz = base.z - airportPos.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                if (dist < 75) { const push = (75 - dist) / dist; base.x += dx * push; base.z += dz * push; }
+                const bh = buildingHeightAt(base.x, base.z, 6);
+                if (bh > 0 && base.y < bh + 16) base.y = bh + 16;
+                pts.push(base);
+            }
+            start.y = minAlt + Math.random() * (maxAlt - minAlt);
+            end.y = minAlt + Math.random() * (maxAlt - minAlt);
+            pts.push(end);
+            return new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.4);
+        }
+
+        let buildings = [], buildingShrouds = [];
+        let maxBuildingHeightInScene = 0;
+        let drones = [];
+        let operators = [];
+
+        function clearAirspace() {
+            buildings.forEach(b => disposeGroup(b)); buildings = [];
+            buildingShrouds.forEach(s => disposeGroup(s)); buildingShrouds = [];
+            drones.forEach(d => {
+                disposeGroup(d.mesh); disposeGroup(d.shroud);
+                if (d.trail) { disposeMesh(d.trail); scene.remove(d.trail); }
+                if (d.package) { disposeMesh(d.package); scene.remove(d.package); d.package = null; }
+            });
+            drones = [];
+            operators.forEach(o => { disposeGroup(o.group); disposeGroup(o.shroud); });
+            operators = [];
+        }
+
+        function buildCity(count, maxHeight) {
+            const placements = [];
+            const tryPlace = (x, z, w, d) => {
+                for (const p of placements) {
+                    if (Math.abs(p.x - x) < (p.w + w)/2 + 2 && Math.abs(p.z - z) < (p.d + d)/2 + 2) return false;
+                }
+                placements.push({ x, z, w, d }); return true;
+            };
+            const downtown = Math.floor(count * 0.4);
+            const suburbs = count - downtown;
+            const cityRadius = 110;
+            for (let i = 0; i < downtown; i++) {
+                for (let attempts = 0; attempts < 25; attempts++) {
+                    const r = Math.random() * 45;
+                    const a = Math.random() * Math.PI * 2;
+                    const x = -20 + Math.cos(a) * r, z = 10 + Math.sin(a) * r;
+                    const w = 7 + Math.random() * 6, d = 7 + Math.random() * 6;
+                    const h = maxHeight * 0.45 + Math.random() * (maxHeight * 0.55);
+                    if (tryPlace(x, z, w, d)) {
+                        const { building, shroud } = makeBuilding(x, z, w, h, d);
+                        buildings.push(building); buildingShrouds.push(shroud);
+                        break;
+                    }
+                }
+            }
+            for (let i = 0; i < suburbs; i++) {
+                for (let attempts = 0; attempts < 25; attempts++) {
+                    const x = (Math.random() - 0.5) * cityRadius * 1.8;
+                    const z = (Math.random() - 0.5) * cityRadius * 1.6;
+                    const w = 5 + Math.random() * 5, d = 5 + Math.random() * 5;
+                    const h = 8 + Math.random() * Math.min(14, maxHeight * 0.3);
+                    if (tryPlace(x, z, w, d)) {
+                        const { building, shroud } = makeBuilding(x, z, w, h, d);
+                        buildings.push(building); buildingShrouds.push(shroud);
+                        break;
+                    }
+                }
+            }
+            // Compute tallest building so drone paths can fly above all shrouds
+            maxBuildingHeightInScene = buildings.reduce((max, b) => Math.max(max, b.userData.bounds.h), 0);
+        }
+
+        // Helper: returns building height if (x, z) is inside any building's footprint+buffer, else 0
+        function buildingHeightAt(x, z, buffer) {
+            buffer = buffer || 4;
+            let maxH = 0;
+            for (const b of buildings) {
+                const bnd = b.userData.bounds;
+                if (Math.abs(x - bnd.x) < bnd.w/2 + buffer && Math.abs(z - bnd.z) < bnd.d/2 + buffer) {
+                    if (bnd.h > maxH) maxH = bnd.h;
+                }
+            }
+            return maxH;
+        }
+
+        function buildDrones(count) {
+            const p4Spec = PRIORITY_SPECS['p4'];
+            for (let i = 0; i < count; i++) {
+                const mesh = makeDroneMesh(); scene.add(mesh);
+                const shroud = makeDynamicShroud(); scene.add(shroud);
+                // Tint shroud blue to match P4 commercial class
+                if (shroud.children[0]) shroud.children[0].material.color.setHex(p4Spec.shroudColor);
+                if (shroud.children[1]) shroud.children[1].material.color.setHex(p4Spec.shroudColor);
+                if (shroud.children[2]) shroud.children[2].material.color.setHex(p4Spec.shroudColor);
+                const cleanPath = randomDronePath(); const naivePath = naiveDronePath();
+                const trailMax = 40;
+                const trailGeo = new THREE.BufferGeometry();
+                const trailPos = new Float32Array(trailMax * 3);
+                trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+                const trailMat = new THREE.PointsMaterial({ color: p4Spec.emissive, size: 0.6, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+                const trail = new THREE.Points(trailGeo, trailMat);
+                scene.add(trail);
+                drones.push({
+                    mesh, shroud, cleanPath, naivePath,
+                    t: Math.random(), speed: 0.04 + Math.random() * 0.04,
+                    trail, trailGeo, trailPos, trailMax, trailMat, trailHistory: [],
+                    priorityClass: 'p4',
+                    shroudRadius: p4Spec.shroudR,
+                    shroudColor: p4Spec.shroudColor,
+                    // Delivery state machine
+                    delivState: 'cruising',     // 'cruising' | 'descending' | 'hovering' | 'ascending'
+                    delivTimer: 0,
+                    delivTargetY: 0,
+                    delivCruiseY: 0,            // remembered y when descent began (so ascent returns here)
+                    package: null,              // small red mesh dropped at hover bottom
+                });
+            }
+        }
+
+        // ─── LCR Corridor + Priority drones ──────────────────────────
+        // LCR corridor is a high-altitude band reserved for P1 life-critical missions.
+        // P1 drones fly within it. Visualization toggles on in phases 2-4 (TPO-managed).
+        const LCR_ALT_MIN = 60;
+        const LCR_ALT_MAX = 78;
+        let lcrCorridorGroup = null;
+
+        function buildLCRCorridor() {
+            const g = new THREE.Group();
+            const w = 460;
+            const h = LCR_ALT_MAX - LCR_ALT_MIN;
+            const yMid = (LCR_ALT_MIN + LCR_ALT_MAX) / 2;
+            // Floor (= 400' ceiling for swarm classes) — brighter so it reads as a regulatory boundary
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, w), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.10, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+            floor.rotation.x = -Math.PI/2; floor.position.y = LCR_ALT_MIN; g.add(floor);
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, w), new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+            ceiling.rotation.x = -Math.PI/2; ceiling.position.y = LCR_ALT_MAX; g.add(ceiling);
+            // Grid markers — floor brighter (400' ceiling line is the important one)
+            const gridFloor = new THREE.GridHelper(w, 24, 0xfbbf24, 0xb45309);
+            gridFloor.position.y = LCR_ALT_MIN + 0.05;
+            gridFloor.material.transparent = true; gridFloor.material.opacity = 0.65;
+            g.add(gridFloor);
+            const gridCeiling = new THREE.GridHelper(w, 24, 0xfbbf24, 0x854d0e);
+            gridCeiling.position.y = LCR_ALT_MAX - 0.05;
+            gridCeiling.material.transparent = true; gridCeiling.material.opacity = 0.30;
+            g.add(gridCeiling);
+            // Wireframe box for the volume
+            const wire = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshBasicMaterial({ color: 0xfbbf24, wireframe: true, transparent: true, opacity: 0.22, depthWrite: false }));
+            wire.position.y = yMid; g.add(wire);
+            // Altitude labels at the corners (canvas-based sprites) — sized to be readable
+            // from the auto-fit camera distance across a 460-unit-wide corridor.
+            const makeLabelSprite = (text, color) => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 768; canvas.height = 192;
+                const ctx = canvas.getContext('2d');
+                // Solid black fill so amber border + white text pop against any sky color
+                ctx.fillStyle = 'rgba(5,8,15,0.95)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Bright amber border (double stroke for emphasis)
+                ctx.strokeStyle = color; ctx.lineWidth = 6;
+                ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+                ctx.strokeStyle = 'rgba(251,191,36,0.4)'; ctx.lineWidth = 2;
+                ctx.strokeRect(14, 14, canvas.width - 28, canvas.height - 28);
+                // Big white text with amber drop shadow for contrast against blue sky
+                ctx.font = 'bold 64px Courier New';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                // Drop shadow
+                ctx.shadowColor = color; ctx.shadowBlur = 16;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(text, canvas.width/2, canvas.height/2);
+                ctx.shadowBlur = 0;
+                // Re-stroke text in amber for the badge look
+                ctx.strokeStyle = color; ctx.lineWidth = 1.5;
+                ctx.strokeText(text, canvas.width/2, canvas.height/2);
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.minFilter = THREE.LinearFilter;
+                tex.magFilter = THREE.LinearFilter;
+                tex.anisotropy = 4;
+                const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+                const sprite = new THREE.Sprite(mat);
+                sprite.renderOrder = 999;
+                sprite.scale.set(52, 13, 1);   // ~2× bigger than before, readable from ~250 units away
+                return sprite;
+            };
+            const labelCorners = [[w/2 - 50, w/2 - 50], [-(w/2 - 50), -(w/2 - 50)]];
+            labelCorners.forEach(([x, z]) => {
+                const lo = makeLabelSprite("400' AGL — LCR FLOOR", '#fbbf24');
+                lo.position.set(x, LCR_ALT_MIN + 1.5, z);
+                g.add(lo);
+                const hi = makeLabelSprite("500' AGL — LCR CEILING", '#fbbf24');
+                hi.position.set(x, LCR_ALT_MAX - 1.5, z);
+                g.add(hi);
+            });
+            g.visible = false;
+            scene.add(g);
+            return g;
+        }
+
+        // Priority class specs (visual size, color, shroud size)
+        const PRIORITY_SPECS = {
+            'p1': { color: 0xef4444, emissive: 0xff5050, eye: 0xff7070,  bodyScale: 1.10, shroudR: 7.0, shroudColor: 0xef4444, label: 'P1 LCR' },
+            'p2': { color: 0xa855f7, emissive: 0xc88aff, eye: 0xd0a8ff,  bodyScale: 1.00, shroudR: 5.5, shroudColor: 0xa855f7, label: 'P2 PATROL' },
+            'p3': { color: 0x10b981, emissive: 0x6ee7b7, eye: 0xa0f2cc,  bodyScale: 0.92, shroudR: 4.5, shroudColor: 0x10b981, label: 'P3 COURIER' },
+            'p4': { color: 0x3b82f6, emissive: 0x60a5fa, eye: 0x93c5fd,  bodyScale: 0.85, shroudR: 4.0, shroudColor: 0x3b82f6, label: 'P4 COMMERCIAL' },
+            'p5': { color: 0x94a3b8, emissive: 0xcbd5e1, eye: 0xe2e8f0,  bodyScale: 0.72, shroudR: 3.0, shroudColor: 0x94a3b8, label: 'P5 HOBBY' },
+        };
+
+        // Make a drone mesh tinted to a specific priority class
+        function makePriorityDroneMesh(cls) {
+            const spec = PRIORITY_SPECS[cls];
+            const g = new THREE.Group();
+            const s = spec.bodyScale;
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8 * s, 0.32 * s, 0.8 * s),
+                new THREE.MeshStandardMaterial({ color: 0x0a1525, roughness: 0.4, metalness: 0.7, emissive: spec.color, emissiveIntensity: 0.55 })
+            );
+            g.add(body);
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.16 * s, 10, 8), new THREE.MeshBasicMaterial({ color: spec.eye }));
+            eye.position.y = -0.21 * s; g.add(eye);
+            const armPositions = [[0.6,0,0.6],[-0.6,0,0.6],[0.6,0,-0.6],[-0.6,0,-0.6]];
+            const rotors = [];
+            armPositions.forEach((p) => {
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * s, 0.13 * s, 0.16 * s, 8), new THREE.MeshStandardMaterial({ color: 0x222831 }));
+                motor.position.set(p[0] * s, 0.10 * s, p[2] * s); g.add(motor);
+                const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.95 * s, 0.04, 0.07), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5 }));
+                rotor.position.set(p[0] * s, 0.24 * s, p[2] * s); g.add(rotor); rotors.push(rotor);
+                const halo = new THREE.Mesh(new THREE.RingGeometry(0.42 * s, 0.58 * s, 14), new THREE.MeshBasicMaterial({ color: spec.emissive, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+                halo.position.set(p[0] * s, 0.24 * s, p[2] * s); halo.rotation.x = -Math.PI/2; g.add(halo);
+            });
+            g.userData.rotors = rotors;
+            return g;
+        }
+
+        // Generate a path constrained to a specific altitude band — used for LCR + patrol drones
+        function makeBandedPath(altMin, altMax) {
+            const startSide = Math.floor(Math.random() * 4);
+            const endSide = (startSide + 2) % 4;
+            const sidePoint = (s) => {
+                const r = 180;
+                if (s === 0) return new THREE.Vector3(-r, 0, (Math.random()-0.5)*200);
+                if (s === 1) return new THREE.Vector3((Math.random()-0.5)*200, 0, -r);
+                if (s === 2) return new THREE.Vector3(r, 0, (Math.random()-0.5)*200);
+                return new THREE.Vector3((Math.random()-0.5)*200, 0, r);
+            };
+            const start = sidePoint(startSide); const end = sidePoint(endSide);
+            const pts = [start];
+            for (let i = 1; i <= 4; i++) {
+                const t = i / 5;
+                const base = new THREE.Vector3().lerpVectors(start, end, t);
+                base.x += (Math.random() - 0.5) * 30; base.z += (Math.random() - 0.5) * 30;
+                base.y = altMin + Math.random() * (altMax - altMin);
+                // Push waypoint away from airport zone
+                const dx = base.x - airportPos.x, dz = base.z - airportPos.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                if (dist < 75) { const push = (75 - dist) / dist; base.x += dx * push; base.z += dz * push; }
+                pts.push(base);
+            }
+            start.y = altMin + Math.random() * (altMax - altMin);
+            end.y = altMin + Math.random() * (altMax - altMin);
+            pts.push(end);
+            return new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.4);
+        }
+
+        // Spawn N priority drones of a given class. P1 stays in LCR corridor; P2/P3 use standard cruise altitudes.
+        function spawnPriorityDrones(cls, count) {
+            const spec = PRIORITY_SPECS[cls];
+            for (let i = 0; i < count; i++) {
+                const mesh = makePriorityDroneMesh(cls); scene.add(mesh);
+                const shroud = makeDynamicShroud(); scene.add(shroud);
+                // Tint shroud to match class
+                if (shroud.children[0]) shroud.children[0].material.color.setHex(spec.shroudColor);
+                if (shroud.children[1]) shroud.children[1].material.color.setHex(spec.shroudColor);
+                if (shroud.children[2]) shroud.children[2].material.color.setHex(spec.shroudColor);
+                let cleanPath, naivePath;
+                if (cls === 'p1') {
+                    // P1 LCR — confined to the LCR corridor (60-78 units)
+                    cleanPath = makeBandedPath(LCR_ALT_MIN + 2, LCR_ALT_MAX - 2);
+                    naivePath = makeBandedPath(LCR_ALT_MIN + 2, LCR_ALT_MAX - 2);
+                } else if (cls === 'p2') {
+                    // P2 patrol — no altitude restriction, can go anywhere
+                    cleanPath = makeFullSkyPath();
+                    naivePath = makeFullSkyPath();
+                } else if (cls === 'p3') {
+                    // P3 courier — no altitude restriction, can go anywhere
+                    cleanPath = makeFullSkyPath();
+                    naivePath = makeFullSkyPath();
+                } else if (cls === 'p5') {
+                    // P5 hobby — recreational class, hard-capped under 400'
+                    // (clamped at runtime to BELOW_400_CEILING regardless of waypoints)
+                    const hobbyMin = Math.max(maxBuildingHeightInScene + 4, 12);
+                    cleanPath = makeBandedPath(hobbyMin, hobbyMin + 8);
+                    naivePath = makeBandedPath(hobbyMin, hobbyMin + 8);
+                } else {
+                    // P4 commercial — sub-LCR cruise lane (clamped at runtime to BELOW_400_CEILING)
+                    cleanPath = randomDronePath();
+                    naivePath = naiveDronePath();
+                }
+                // Trail
+                const trailMax = 40;
+                const trailGeo = new THREE.BufferGeometry();
+                const trailPos = new Float32Array(trailMax * 3);
+                trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+                const trailMat = new THREE.PointsMaterial({ color: spec.emissive, size: 0.7, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true });
+                const trail = new THREE.Points(trailGeo, trailMat);
+                scene.add(trail);
+                // Speed: P1 fastest (mission-critical), P2 moderate, P3 brisk, P5 slowest (hobbyist)
+                const speedBase = cls === 'p1' ? 0.07 : cls === 'p2' ? 0.05 : cls === 'p5' ? 0.025 : 0.05;
+                drones.push({
+                    mesh, shroud, cleanPath, naivePath,
+                    t: Math.random(), speed: speedBase + Math.random() * 0.03,
+                    trail, trailGeo, trailPos, trailMax, trailMat, trailHistory: [],
+                    priorityClass: cls,
+                    shroudRadius: spec.shroudR,
+                    shroudColor: spec.shroudColor,
+                    // No deliveries for priority drones — they're on dedicated missions
+                    delivState: 'cruising',
+                    delivTimer: 0,
+                    delivTargetY: 0,
+                    delivCruiseY: 0,
+                    package: null,
+                });
+            }
+        }
+
+        function buildOperators(cfg) {
+            // Place an operator on the periphery, avoiding spawning inside a building
+            const placeOp = (minClearance) => {
+                minClearance = minClearance || 6;
+                for (let attempt = 0; attempt < 12; attempt++) {
+                    const a = Math.random() * Math.PI * 2;
+                    const r = 70 + Math.random() * 80;
+                    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+                    if (buildingHeightAt(x, z, minClearance) === 0) return { x, z };
+                }
+                // Fallback: place far out where buildings can't reach
+                const a = Math.random() * Math.PI * 2;
+                return { x: Math.cos(a) * 165, z: Math.sin(a) * 165 };
+            };
+            // Lift altitude above any building shroud directly below the operator
+            const safeAlt = (x, z, baseY) => {
+                const bh = buildingHeightAt(x, z, 8);
+                const minSafe = bh > 0 ? bh + 14 : 0;
+                return Math.max(baseY, minSafe);
+            };
+            if (cfg.balloon.enabled) for (let i = 0; i < cfg.balloon.count; i++) {
+                const p = placeOp(); const y = safeAlt(p.x, p.z, 35 + Math.random() * 25);
+                operators.push(makeBalloon(p.x, y, p.z));
+            }
+            if (cfg.plane.enabled) for (let i = 0; i < cfg.plane.count; i++) {
+                const p = placeOp(); const color = Math.random() > 0.5 ? 0xc0c4cc : 0xa8542a;
+                const y = safeAlt(p.x, p.z, 55 + Math.random() * 25);
+                operators.push(makePlane(p.x, y, p.z, color));
+            }
+            if (cfg.glider.enabled) for (let i = 0; i < cfg.glider.count; i++) {
+                const p = placeOp(); const y = safeAlt(p.x, p.z, 50 + Math.random() * 20);
+                operators.push(makeGlider(p.x, y, p.z));
+            }
+            if (cfg.heli.enabled) for (let i = 0; i < cfg.heli.count; i++) {
+                const p = placeOp(); const y = safeAlt(p.x, p.z, 30 + Math.random() * 25);
+                operators.push(makeHelicopter(p.x, y, p.z, 0x2a4060));
+            }
+        }
+
+        function readConfig() {
+            return {
+                buildingCount: +document.getElementById('cfg-bld-count').value,
+                buildingMaxHeight: +document.getElementById('cfg-bld-height').value,
+                droneCount: +document.getElementById('cfg-drn-count').value,
+                operators: {
+                    balloon: { enabled: document.getElementById('op-balloon').checked, count: +document.getElementById('op-balloon-n').value },
+                    plane: { enabled: document.getElementById('op-plane').checked, count: +document.getElementById('op-plane-n').value },
+                    glider: { enabled: document.getElementById('op-glider').checked, count: +document.getElementById('op-glider-n').value },
+                    heli: { enabled: document.getElementById('op-heli').checked, count: +document.getElementById('op-heli-n').value },
+                }
+            };
+        }
+
+        function regenerate() {
+            const cfg = readConfig();
+            clearAirspace();
+            buildCity(cfg.buildingCount, cfg.buildingMaxHeight);
+            buildOperators(cfg.operators);
+            buildDrones(cfg.droneCount);
+            // Priority drones — visible across all phases. P1 LCRs in the corridor, P2 patrol, P3 courier, P5 hobby.
+            spawnPriorityDrones('p3', 4);   // green couriers — courier/medical-supply class
+            spawnPriorityDrones('p2', 2);   // purple patrol — police/fire
+            spawnPriorityDrones('p1', 2);   // red LCR — confined to LCR corridor
+            spawnPriorityDrones('p5', 3);   // gray hobby drones — low altitude recreational class
+        }
+
+        ['bld-count','bld-height','drn-count'].forEach(id => {
+            const el = document.getElementById('cfg-' + id);
+            const valEl = document.getElementById('val-' + id);
+            el.addEventListener('input', () => { valEl.textContent = el.value; });
+        });
+        document.getElementById('cfg-regen').addEventListener('click', regenerate);
+        document.getElementById('config-header').addEventListener('click', (e) => {
+            const panel = document.getElementById('config-panel');
+            panel.classList.toggle('collapsed');
+            document.getElementById('config-toggle').textContent = panel.classList.contains('collapsed') ? '+' : '−';
+        });
+
+        let phase = 1;
+        let autoPlay = true;
+        let autoTimer = null;
+
+        const phaseData = [
+            { num: 'PHASE 01 / 04', title: 'Today — drones blind to the city below', sub: 'No registry · no shrouds · no coordination', status: 'SYS_STATUS: URBAN AIRSPACE — UNCOORDINATED TRAFFIC DETECTED', statusColor: '#ef4444' },
+            { num: 'PHASE 02 / 04', title: 'Static infrastructure registered', sub: 'Buildings + airport · no-fly volumes locked', status: 'SYS_STATUS: STATIC INFRA SHROUDS ACTIVE — BUILDINGS + APPROACH CORRIDORS', statusColor: '#06b6d4' },
+            { num: 'PHASE 03 / 04', title: 'Dynamic agents online', sub: 'N×M deconfliction — drones see drones see manned', status: 'SYS_STATUS: DYNAMIC SHROUDS ACTIVE — N×M DECONFLICTION COMPUTING', statusColor: '#f59e0b' },
+            { num: 'PHASE 04 / 04', title: 'Pecking Order routes everything', sub: 'Clean curves · zero conflicts · 52ms loop', status: 'SYS_STATUS: ALL TRAFFIC ROUTED — ZERO CONFLICTS · 52MS LOOP', statusColor: '#10b981' },
+        ];
+
+        const phaseNumEl = document.getElementById('phase-num');
+        const phaseTitleEl = document.getElementById('phase-title');
+        const phaseSubEl = document.getElementById('phase-sub');
+        const statusEl = document.getElementById('status-bar');
+        const stepBtns = document.querySelectorAll('.step-btn[data-phase]');
+        const dotBtns = document.querySelectorAll('.phase-dot');
+        const autoBtn = document.getElementById('auto-btn');
+
+        function setPhase(n) {
+            phase = n;
+            const d = phaseData[n - 1];
+            phaseNumEl.textContent = d.num;
+            phaseTitleEl.textContent = d.title;
+            phaseSubEl.textContent = d.sub;
+            statusEl.textContent = d.status;
+            statusEl.style.color = d.statusColor;
+            statusEl.style.borderColor = d.statusColor + '66';
+            stepBtns.forEach(b => b.classList.toggle('active', +b.dataset.phase === n));
+            dotBtns.forEach(b => b.classList.toggle('active', +b.dataset.phase === n));
+        }
+
+        function startAuto() {
+            if (autoTimer) clearInterval(autoTimer);
+            autoTimer = setInterval(() => setPhase(phase % 4 + 1), 7000);
+            autoBtn.classList.add('on'); autoBtn.textContent = '■ AUTO-CYCLE: ON';
+        }
+        function stopAuto() {
+            if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+            autoBtn.classList.remove('on'); autoBtn.textContent = '▶ AUTO-CYCLE: OFF';
+        }
+        stepBtns.forEach(b => b.addEventListener('click', () => { stopAuto(); autoPlay = false; setPhase(+b.dataset.phase); }));
+        dotBtns.forEach(b => b.addEventListener('click', () => { stopAuto(); autoPlay = false; setPhase(+b.dataset.phase); }));
+        autoBtn.addEventListener('click', () => { autoPlay = !autoPlay; if (autoPlay) startAuto(); else stopAuto(); });
+
+        function onResize() {
+            width = host.clientWidth; height = host.clientHeight;
+            renderer.setSize(width, height);
+            camera.aspect = width / height; camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', onResize);
+
+        buildAirport();
+        lcrCorridorGroup = buildLCRCorridor();
+        regenerate();
+        startAuto();
+
+        const clock = new THREE.Clock();
+        function animate() {
+            const dt = Math.min(clock.getDelta(), 0.05);
+            const elapsed = clock.getElapsedTime();
+            const p = phase;
+
+            buildingShrouds.forEach((s) => {
+                const want = p >= 2 ? 1 : 0.001;
+                const next = THREE.MathUtils.lerp(s.scale.x, want, 0.06);
+                s.scale.set(next, 1, next);
+                if (s.children[0]) s.children[0].material.opacity = 0.06 + Math.sin(elapsed * 1.5 + s.position.x * 0.05) * 0.015;
+            });
+            if (airportShroud) airportShroud.scale.setScalar(THREE.MathUtils.lerp(airportShroud.scale.x, p >= 2 ? 1 : 0.001, 0.05));
+            approachShrouds.forEach((s) => s.scale.setScalar(THREE.MathUtils.lerp(s.scale.x, p >= 2 ? 1 : 0.001, 0.05)));
+            // LCR corridor — visible from phase 2 onward (TPO-managed airspace)
+            if (lcrCorridorGroup) lcrCorridorGroup.visible = (p >= 2);
+
+            drones.forEach((d, i) => {
+                d.mesh.userData.rotors.forEach((r) => { r.rotation.y += 1.5; });
+                let curve, useTrail;
+                if (p === 1) { curve = d.naivePath; useTrail = false; }
+                else if (p === 4) { curve = d.cleanPath; useTrail = true; }
+                else { curve = d.cleanPath; useTrail = false; }
+
+                // ─── Delivery state machine ────────────────────────
+                // 10-20% of drones make deliveries. Triggered probabilistically while cruising.
+                // Cruising → Descending (~1.2s straight down) → Hovering (~1.8s, drops package) →
+                // Ascending (~1.2s straight up) → Cruising (resume curve at same t)
+                // Don't start a delivery in phase 1 (chaos mode) — looks weird.
+                if (d.delivState === 'cruising') {
+                    d.t += dt * d.speed;
+                    if (d.t > 1) d.t = 0;
+                    const pos = curve.getPointAt(d.t);
+                    const tan = curve.getTangentAt(Math.min(d.t + 0.001, 1));
+                    d.mesh.position.copy(pos);
+                    d.mesh.position.y += Math.sin(elapsed * 4 + i) * 0.15;
+                    // ─── ALTITUDE LAW ENFORCEMENT ───
+                    // P4 / P5: hard ceiling at 400' — never go above LCR_ALT_MIN-2, even on ascent
+                    // P1: confined to LCR corridor (400-500') while cruising
+                    // P2 / P3 / P0: no restriction — can go anywhere
+                    if (d.priorityClass === 'p4' || d.priorityClass === 'p5') {
+                        if (d.mesh.position.y > LCR_ALT_MIN - 2) d.mesh.position.y = LCR_ALT_MIN - 2;
+                    } else if (d.priorityClass === 'p1') {
+                        if (d.mesh.position.y < LCR_ALT_MIN + 1) d.mesh.position.y = LCR_ALT_MIN + 1;
+                        if (d.mesh.position.y > LCR_ALT_MAX - 1) d.mesh.position.y = LCR_ALT_MAX - 1;
+                    }
+                    d.mesh.lookAt(pos.clone().add(tan));
+                    // Probabilistic trigger — only in phases 2-4 (TPO-managed airspace)
+                    // Tuned for ~1-2 active deliveries among 9 drones at any time.
+                    // Priority drones (P1/P2/P3) skip deliveries — they're on dedicated missions.
+                    if (p >= 2 && d.priorityClass === 'p4' && Math.random() < 0.0009) {
+                        d.delivState = 'descending';
+                        d.delivCruiseY = pos.y;             // remember where we were on the curve
+                        // Descent target: building rooftop if directly below, else 4ft above ground
+                        const groundCheck = buildingHeightAt(pos.x, pos.z, 4);
+                        d.delivTargetY = groundCheck > 0 ? groundCheck + 1.2 : 2.5;
+                    }
+                } else if (d.delivState === 'descending') {
+                    // Descend straight down — stop X/Z, lerp Y to delivery target
+                    const cur = d.mesh.position;
+                    cur.y = THREE.MathUtils.lerp(cur.y, d.delivTargetY, 0.06);
+                    d.mesh.rotation.set(0, d.mesh.rotation.y, 0);  // level out
+                    if (Math.abs(cur.y - d.delivTargetY) < 0.4) {
+                        d.delivState = 'hovering';
+                        d.delivTimer = 0;
+                    }
+                } else if (d.delivState === 'hovering') {
+                    // Hold position, slight bob. After ~1.8s, drop a small red package and ascend.
+                    d.mesh.position.y = d.delivTargetY + Math.sin(elapsed * 6) * 0.08;
+                    d.delivTimer += dt;
+                    // Drop the package at midway through hover (gives it time to fall)
+                    if (d.delivTimer > 0.8 && !d.package) {
+                        const pkg = new THREE.Mesh(
+                            new THREE.BoxGeometry(0.5, 0.4, 0.5),
+                            new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.5, roughness: 0.5 })
+                        );
+                        pkg.position.copy(d.mesh.position);
+                        pkg.position.y -= 0.5;
+                        pkg.userData.vy = 0;
+                        pkg.userData.born = elapsed;
+                        scene.add(pkg);
+                        d.package = pkg;
+                    }
+                    if (d.delivTimer > 1.8) {
+                        d.delivState = 'ascending';
+                    }
+                } else if (d.delivState === 'ascending') {
+                    // Climb back to cruise altitude
+                    const cur = d.mesh.position;
+                    cur.y = THREE.MathUtils.lerp(cur.y, d.delivCruiseY, 0.06);
+                    // Hard ceiling enforcement — P4 must stay below 400' even on ascent
+                    if (d.priorityClass === 'p4' || d.priorityClass === 'p5') {
+                        if (cur.y > LCR_ALT_MIN - 2) cur.y = LCR_ALT_MIN - 2;
+                    }
+                    if (Math.abs(cur.y - d.delivCruiseY) < 0.4) {
+                        d.delivState = 'cruising';
+                    }
+                }
+
+                d.shroud.position.copy(d.mesh.position);
+                // Priority drones (P1/P2/P3) show shrouds from phase 2 onward.
+                // P4 swarm waits until phase 3 (matches the original "Dynamic Agents" beat).
+                const visiblePhase = (d.priorityClass === 'p4') ? 3 : 2;
+                const want = (p >= visiblePhase) ? d.shroudRadius : 0.001;
+                const breathe = 1 + Math.sin(elapsed * 1.5 + i * 0.7) * 0.06;
+                d.shroud.scale.setScalar(THREE.MathUtils.lerp(d.shroud.scale.x, want * breathe, 0.06));
+                if (d.shroud.children[2]) { d.shroud.children[2].rotation.y += 0.003; d.shroud.children[2].rotation.x += 0.002; }
+
+                // Update package: gravity-fall, fade, despawn
+                if (d.package) {
+                    const pkg = d.package;
+                    const age = elapsed - pkg.userData.born;
+                    if (pkg.position.y > d.delivTargetY - 6) {
+                        pkg.userData.vy -= dt * 8;
+                        pkg.position.y += pkg.userData.vy * dt;
+                        pkg.rotation.x += 0.06;
+                        pkg.rotation.z += 0.04;
+                    }
+                    if (age > 4.0) {
+                        pkg.material.opacity = Math.max(0, 1 - (age - 4.0) * 1.5);
+                        pkg.material.transparent = true;
+                    }
+                    if (age > 4.7) {
+                        disposeMesh(pkg); scene.remove(pkg); d.package = null;
+                    }
+                }
+
+                if (useTrail) {
+                    d.trailHistory.unshift(d.mesh.position.clone());
+                    if (d.trailHistory.length > d.trailMax) d.trailHistory.length = d.trailMax;
+                    for (let j = 0; j < d.trailMax; j++) {
+                        const pt = d.trailHistory[j] || d.mesh.position;
+                        d.trailPos[j*3] = pt.x; d.trailPos[j*3+1] = pt.y; d.trailPos[j*3+2] = pt.z;
+                    }
+                    d.trailGeo.attributes.position.needsUpdate = true;
+                    d.trailMat.opacity = 0.65;
+                } else {
+                    d.trailMat.opacity = THREE.MathUtils.lerp(d.trailMat.opacity, 0, 0.1);
+                }
+            });
+
+            operators.forEach(({ group, tag, shroud }, i) => {
+                if (group.userData.bob) {
+                    const b = group.userData.bob;
+                    const speed = b.slow ? 0.5 : 1.0;
+                    group.position.y = b.base + Math.sin(elapsed * speed + b.phase) * (b.slow ? 0.6 : 0.3);
+                }
+                if (group.userData.prop) group.userData.prop.rotation.x += 1.2;
+                if (group.userData.rotor) group.userData.rotor.rotation.y += 0.8;
+                if (group.userData.tailRotor) group.userData.tailRotor.rotation.x += 1.2;
+                // Drift along bearing — but bounce off buildings instead of passing through
+                const driftX = Math.cos(group.rotation.y) * 0.02;
+                const driftZ = Math.sin(group.rotation.y) * 0.02;
+                const futureX = group.position.x + driftX;
+                const futureZ = group.position.z + driftZ;
+                const bhAhead = buildingHeightAt(futureX, futureZ, 8);
+                if (bhAhead > 0 && bhAhead + 10 > group.position.y) {
+                    // Building in the way and operator is below its shroud — turn 90° and try the next frame
+                    group.rotation.y += Math.PI / 2;
+                } else {
+                    group.position.x = futureX;
+                    group.position.z = futureZ;
+                }
+                if (Math.abs(group.position.x) > 200 || Math.abs(group.position.z) > 200) {
+                    group.position.x *= -0.95; group.position.z *= -0.95;
+                }
+                tag.scale.setScalar(THREE.MathUtils.lerp(tag.scale.x, p >= 2 ? 1 : 0, 0.08));
+                const halo = tag.children[1];
+                if (halo) halo.scale.setScalar(1 + Math.sin(elapsed * 3 + i) * 0.15);
+                const want = p >= 3 ? shroud.userData.targetRadius : 0.001;
+                shroud.position.lerp(group.position, 0.2);
+                const breathe = 1 + Math.sin(elapsed * 1.5 + group.position.x * 0.1) * 0.04;
+                const target = want * breathe;
+                const next = THREE.MathUtils.lerp(shroud.scale.x, target, 0.05);
+                if (shroud.userData.elongated) shroud.scale.set(next, next * 0.7, next * 1.3);
+                else shroud.scale.setScalar(next);
+                const wire = shroud.children[2];
+                if (wire) { wire.rotation.y += 0.002; wire.rotation.x += 0.001; }
+            });
+
+            const orbitT = elapsed * 0.04;
+            let camR = 200, camY = 70, lookY = 20;
+            if (p === 1) { camR = 220; camY = 80; lookY = 25; }
+            if (p === 2) { camR = 190; camY = 75; lookY = 22; }
+            if (p === 3) { camR = 175; camY = 65; lookY = 18; }
+            if (p === 4) { camR = 195; camY = 70; lookY = 22; }
+            camera.position.lerp(new THREE.Vector3(Math.cos(orbitT) * camR, camY, Math.sin(orbitT) * camR), 0.018);
+            camera.position.y += Math.sin(elapsed * 0.5) * 0.15;
+            camera.lookAt(0, lookY, 0);
+            stars.rotation.y += 0.00008;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+        animate();
+    })();
+    </script>
+</body>
+</html>
