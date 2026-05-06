@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | UTM Interconnect — Network Map</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, #0a1a2e 0%, #020617 100%); }
+        #svg-host { position: absolute; inset: 0; }
+        #svg-host svg { display: block; width: 100%; height: 100%; }
+
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.75); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 12px; color: #06b6d4; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); }
+
+        #phase-info { position: absolute; top: 70px; left: 20px; background: rgba(15,23,42,0.85); border: 1px solid #1e293b; border-left: 3px solid #06b6d4; padding: 14px 20px 14px 18px; z-index: 100; max-width: 380px; backdrop-filter: blur(4px); }
+        .phase-num { font-family: 'Courier New', monospace; font-size: 10px; color: #64748b; letter-spacing: 0.3em; margin-bottom: 6px; }
+        .phase-title { font-size: 17px; font-weight: 300; letter-spacing: 0.02em; color: #e2e8f0; line-height: 1.2; }
+        .phase-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; letter-spacing: 0.04em; }
+
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.35em; color: #06b6d4; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 9px; letter-spacing: 0.3em; color: #64748b; margin-top: 4px; }
+
+        #count-strip { position: absolute; top: 20px; right: 20px; display: flex; gap: 8px; z-index: 100; }
+        .count-chip { background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 8px 14px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.1em; color: #94a3b8; backdrop-filter: blur(4px); }
+        .count-chip strong { font-weight: bold; margin-left: 6px; }
+        .count-chip.uss strong { color: #06b6d4; }
+        .count-chip.rid strong { color: #3b82f6; }
+        .count-chip.cmd strong { color: #ef4444; }
+        .count-chip.adsb strong { color: #fbbf24; }
+
+        #legend { position: absolute; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 10px 14px; backdrop-filter: blur(4px); }
+        .legend-row { display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.1em; color: #cbd5e1; }
+        .legend-line { width: 18px; height: 2px; }
+
+        #detail-panel { position: absolute; bottom: 20px; right: 20px; background: rgba(15,23,42,0.92); border: 1px solid #1e293b; border-left: 3px solid #06b6d4; padding: 16px 20px; z-index: 100; max-width: 360px; min-width: 280px; backdrop-filter: blur(4px); display: none; }
+        #detail-panel.active { display: block; }
+        #detail-panel.tpo { border-left-color: #ef4444; }
+        #detail-panel.dss { border-left-color: #10b981; }
+        #detail-panel.adsb { border-left-color: #fbbf24; }
+        #detail-panel.atc { border-left-color: #fbbf24; }
+        #detail-panel.uss { border-left-color: #06b6d4; }
+        #detail-panel.fleet { border-left-color: #3b82f6; }
+        .detail-tag { font-family: 'Courier New', monospace; font-size: 10px; color: #64748b; letter-spacing: 0.3em; margin-bottom: 6px; }
+        .detail-name { font-size: 16px; font-weight: 400; color: #e2e8f0; margin-bottom: 4px; }
+        .detail-role { font-size: 11px; color: #94a3b8; font-family: 'Courier New', monospace; letter-spacing: 0.05em; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px dashed #334155; }
+        .detail-row { display: flex; gap: 12px; font-size: 11px; margin-bottom: 6px; align-items: baseline; }
+        .detail-row .k { color: #64748b; font-family: 'Courier New', monospace; letter-spacing: 0.1em; min-width: 80px; text-transform: uppercase; font-size: 10px; }
+        .detail-row .v { color: #cbd5e1; flex: 1; }
+        .detail-row .v code { background: #020617; color: #10b981; padding: 1px 5px; border-radius: 2px; font-size: 10.5px; font-family: 'Courier New', monospace; }
+        .detail-close { position: absolute; top: 8px; right: 12px; background: none; border: none; color: #64748b; font-size: 16px; cursor: pointer; }
+        .detail-close:hover { color: #ef4444; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 10px; z-index: 1000; }
+        .ctrl-label { color: #64748b; font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.25em; font-weight: bold; margin-right: 8px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #94a3b8; padding: 12px 18px; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.p1-btn { border-color: #ef4444; color: #ef4444; }
+        .step-btn.p1-btn:hover { background: rgba(239,68,68,0.15); box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+        .step-btn.rid-btn { border-color: #3b82f6; color: #3b82f6; }
+        .step-btn.rid-btn:hover { background: rgba(59,130,246,0.15); box-shadow: 0 0 12px rgba(59,130,246,0.4); }
+        .step-btn.reset-btn { border-color: #fbbf24; color: #fbbf24; margin-left: auto; }
+        .step-btn.reset-btn:hover { background: rgba(251,191,36,0.15); }
+
+        /* SVG node + edge styling */
+        .node { cursor: pointer; transition: filter 0.3s; }
+        .node:hover { filter: drop-shadow(0 0 8px currentColor); }
+        .node-bg { stroke-width: 1.5; }
+        .node-label { font-family: 'Courier New', monospace; font-size: 10px; fill: #cbd5e1; letter-spacing: 0.08em; text-anchor: middle; pointer-events: none; }
+        .node-sub { font-family: 'Courier New', monospace; font-size: 8px; fill: #64748b; letter-spacing: 0.15em; text-anchor: middle; pointer-events: none; text-transform: uppercase; }
+
+        .tpo-node .node-bg { fill: rgba(239,68,68,0.08); stroke: #ef4444; stroke-width: 2; }
+        .tpo-node .node-label { fill: #ef4444; font-size: 13px; font-weight: bold; letter-spacing: 0.18em; }
+        .tpo-node .node-sub { fill: #fca5a5; font-size: 9px; }
+
+        .dss-node .node-bg { fill: rgba(16,185,129,0.08); stroke: #10b981; stroke-width: 1.8; stroke-dasharray: 4 2; }
+        .dss-node .node-label { fill: #10b981; font-size: 11px; font-weight: bold; letter-spacing: 0.15em; }
+        .dss-node .node-sub { fill: #6ee7b7; }
+
+        .adsb-node .node-bg { fill: rgba(251,191,36,0.08); stroke: #fbbf24; stroke-width: 1.5; }
+        .adsb-node .node-label { fill: #fbbf24; }
+
+        .atc-node .node-bg { fill: rgba(251,191,36,0.05); stroke: #fbbf24; stroke-width: 1; stroke-dasharray: 2 2; }
+        .atc-node .node-label { fill: #fbbf24; }
+
+        .uss-node .node-bg { fill: rgba(6,182,212,0.06); stroke: #06b6d4; stroke-width: 1.2; }
+        .uss-node.private .node-bg { stroke: #475569; stroke-dasharray: 3 2; }
+        .uss-node.private .node-label { fill: #94a3b8; }
+        .uss-node.anchor .node-bg { stroke: #06b6d4; stroke-width: 2; fill: rgba(6,182,212,0.12); }
+        .uss-node.anchor .node-label { fill: #67e8f9; }
+
+        .fleet-node .node-bg { fill: rgba(59,130,246,0.08); stroke: #3b82f6; stroke-width: 1.2; }
+        .fleet-node .node-label { fill: #3b82f6; font-size: 9px; }
+
+        .edge { fill: none; stroke-width: 1; opacity: 0.35; }
+        .edge.cmd { stroke: #ef4444; opacity: 0.5; }
+        .edge.rid { stroke: #06b6d4; }
+        .edge.dss { stroke: #10b981; stroke-dasharray: 3 3; }
+        .edge.adsb { stroke: #fbbf24; }
+        .edge.fleet { stroke: #3b82f6; }
+        .edge.atc { stroke: #fbbf24; opacity: 0.25; stroke-dasharray: 4 4; }
+
+        .particle { pointer-events: none; }
+        .pulse-ring { fill: none; pointer-events: none; }
+
+        @media (max-width: 900px) {
+            #phase-info { max-width: 50%; padding: 10px 14px; }
+            .phase-title { font-size: 14px; }
+            #count-strip, #legend, #detail-panel { display: none; }
+            #detail-panel.active { display: block; left: 20px; right: 20px; bottom: 20px; max-width: none; }
+            .step-btn { padding: 10px 10px; font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene-container">
+        <div id="svg-host">
+            <svg id="net" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <radialGradient id="tpoGlow"><stop offset="0%" stop-color="#ef4444" stop-opacity="0.3"/><stop offset="100%" stop-color="#ef4444" stop-opacity="0"/></radialGradient>
+                    <radialGradient id="dssGlow"><stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/><stop offset="100%" stop-color="#10b981" stop-opacity="0"/></radialGradient>
+                </defs>
+
+                <!-- Glow halos behind major nodes -->
+                <circle cx="600" cy="100" r="120" fill="url(#tpoGlow)"/>
+                <circle cx="600" cy="290" r="80" fill="url(#dssGlow)"/>
+
+                <!-- ════ EDGES (drawn behind nodes) ════ -->
+                <g id="edges"></g>
+
+                <!-- ════ PARTICLE LAYER ════ -->
+                <g id="particles"></g>
+
+                <!-- ════ PULSE LAYER ════ -->
+                <g id="pulses"></g>
+
+                <!-- ════ NODES ════ -->
+                <g id="nodes"></g>
+
+                <!-- ════ ANNOTATIONS ════ -->
+                <g id="annotations" pointer-events="none">
+                    <!-- Layer separator labels on the right edge -->
+                    <text x="1170" y="105" class="node-sub" text-anchor="end" fill="#475569">SOVEREIGN OVERLAY</text>
+                    <text x="1170" y="295" class="node-sub" text-anchor="end" fill="#475569">DISCOVERY · F3411 + F3548</text>
+                    <text x="1170" y="450" class="node-sub" text-anchor="end" fill="#475569">FAA-APPROVED USS LAYER</text>
+                    <text x="1170" y="635" class="node-sub" text-anchor="end" fill="#475569">DRONE FLEETS · OPERATORS</text>
+
+                    <!-- Edge type captions -->
+                    <text x="540" y="200" class="node-sub" text-anchor="end" fill="#ef4444" opacity="0.7">F3548 CONSTRAINTS ↓</text>
+                    <text x="660" y="200" class="node-sub" text-anchor="start" fill="#06b6d4" opacity="0.7">F3411 NET-RID ↑</text>
+                </g>
+            </svg>
+        </div>
+
+        <div id="status-bar">SYS_STATUS: UTM FABRIC NOMINAL — 17 USS NODES SUBSCRIBED — RID FLOWS ACTIVE</div>
+
+        <div id="phase-info">
+            <div class="phase-num">UTM INTERCONNECT · NETWORK MAP</div>
+            <div class="phase-title">One API surface · seventeen FAA-approved USSs</div>
+            <div class="phase-sub">Click any node to inspect its API surface</div>
+        </div>
+
+        <div id="brand-mark">
+            <div class="brand-title">THE PECKING ORDER</div>
+            <div class="brand-sub">UTM INTERCONNECT</div>
+        </div>
+
+        <div id="count-strip">
+            <div class="count-chip uss">USS NODES <strong id="cnt-uss">17</strong></div>
+            <div class="count-chip rid">RID FLOWS/S <strong id="cnt-rid">1.4K</strong></div>
+            <div class="count-chip adsb">ADS-B TGTS <strong id="cnt-adsb">38</strong></div>
+            <div class="count-chip cmd">CONSTRAINTS <strong id="cnt-cmd">0</strong></div>
+        </div>
+
+        <div id="legend">
+            <div class="legend-row"><div class="legend-line" style="background:#ef4444"></div>F3548 CONSTRAINT WRITE — TPO COMMAND</div>
+            <div class="legend-row"><div class="legend-line" style="background:#06b6d4"></div>F3411 NET-RID DISPLAY — POSITION READ</div>
+            <div class="legend-row"><div class="legend-line" style="background:#10b981; background-image: repeating-linear-gradient(90deg,#10b981 0 3px,transparent 3px 6px)"></div>DSS SYNC — DISCOVERY INDEX</div>
+            <div class="legend-row"><div class="legend-line" style="background:#fbbf24"></div>ADS-B 1090ES / UAT — MANNED P0</div>
+            <div class="legend-row"><div class="legend-line" style="background:#3b82f6"></div>FLEET API — OPERATOR DIRECT</div>
+        </div>
+
+        <div id="detail-panel">
+            <button class="detail-close" onclick="closeDetail()">×</button>
+            <div class="detail-tag" id="d-tag">NODE</div>
+            <div class="detail-name" id="d-name">—</div>
+            <div class="detail-role" id="d-role">—</div>
+            <div id="d-rows"></div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <span class="ctrl-label">SIMULATION</span>
+        <button class="step-btn p1-btn" id="btn-constraint">▲ Inject P1 Constraint</button>
+        <button class="step-btn rid-btn" id="btn-burst">◆ Burst Net-RID Telemetry</button>
+        <button class="step-btn" id="btn-tour">Tour Layers</button>
+        <button class="step-btn reset-btn" id="btn-reset">Reset View</button>
+    </div>
+
+    <script>
+    (function() {
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const edgesG = document.getElementById('edges');
+        const nodesG = document.getElementById('nodes');
+        const particlesG = document.getElementById('particles');
+        const pulsesG = document.getElementById('pulses');
+
+        // ═══════════════════════════════════════════════════════
+        // NODE REGISTRY
+        // ═══════════════════════════════════════════════════════
+        const nodes = {
+            tpo:  { x: 600, y: 100, w: 240, h: 70, label: 'TPO SOVEREIGN NODE', sub: 'Constraint Provider · Display Provider', cls: 'tpo-node', kind: 'tpo' },
+            adsb: { x: 1020, y: 100, w: 140, h: 50, label: 'ADS-B FEED', sub: '1090ES · 978 UAT', cls: 'adsb-node', kind: 'adsb' },
+            atc:  { x: 180,  y: 100, w: 140, h: 50, label: 'FAA SWIM', sub: 'TFR · NOTAM · NAS', cls: 'atc-node', kind: 'atc' },
+            dss:  { x: 600, y: 290, w: 220, h: 56, label: 'INTERUSS DSS', sub: 'Discovery & Synchronization', cls: 'dss-node', kind: 'dss' },
+        };
+
+        // 12 public LAANC USSs + 5 non-public
+        const ussList = [
+            { id: 'aloft',      name: 'Aloft',         note: 'anchor', detail: { vol: '~70% LAANC monthly', fleet: 'Air Control · USS + fleet platform', ios: true, android: true, desktop: true } },
+            { id: 'airspacelink',name:'Airspace Link', note: 'anchor', detail: { vol: 'AirHub platform', fleet: 'B4UFLY-equipped', ios: true, android: true, desktop: true } },
+            { id: 'wing',       name: 'Wing OpenSky',  note: '',       detail: { vol: 'Alphabet/Google', fleet: 'OpenSky app', ios: true, android: true, desktop: false } },
+            { id: 'autopylot',  name: 'AutoPylot',     note: '',       detail: { vol: 'B4UFLY pair', fleet: 'End-to-end mission mgmt', ios: true, android: true, desktop: true } },
+            { id: 'avision',    name: 'Avision',       note: '',       detail: { vol: 'Full coverage', fleet: 'B4UFLY pair', ios: true, android: true, desktop: true } },
+            { id: 'uasidekick', name: 'UASidekick',    note: '',       detail: { vol: 'Full coverage', fleet: 'B4UFLY pair', ios: true, android: true, desktop: true } },
+            { id: 'astrautm',   name: 'AstraUTM',      note: '',       detail: { vol: 'Mobile-first', fleet: '—', ios: true, android: true, desktop: false } },
+            { id: 'flightready',name: 'FlightReady',   note: '',       detail: { vol: 'Part 107 + recreational', fleet: '—', ios: true, android: false, desktop: false } },
+            { id: 'airmatrix',  name: 'AirMatrix',     note: '',       detail: { vol: 'Desktop-only', fleet: '—', ios: false, android: false, desktop: true } },
+            { id: 'flyfreely',  name: 'Flyfreely',     note: '',       detail: { vol: 'Part 107 only', fleet: 'Office app web', ios: false, android: false, desktop: true } },
+            { id: 'flightloop', name: 'Flightloop',    note: '',       detail: { vol: 'Desktop-only', fleet: '—', ios: false, android: false, desktop: true } },
+            { id: 'ettavia',    name: 'eTT Aviation',  note: '',       detail: { vol: 'Desktop-only', fleet: '—', ios: false, android: false, desktop: true } },
+            { id: 'anra',       name: 'ANRA',          note: 'private', detail: { vol: 'Private/enterprise', fleet: 'Defense + EU U-space', ios: false, android: false, desktop: true } },
+            { id: 'ata',        name: 'ATA',           note: 'private', detail: { vol: 'Private/enterprise', fleet: '—', ios: false, android: false, desktop: false } },
+            { id: 'axe',        name: 'AX Enterprize', note: 'private', detail: { vol: 'Private/enterprise', fleet: 'Defense', ios: false, android: false, desktop: false } },
+            { id: 'cal',        name: 'CAL Analytics', note: 'private', detail: { vol: 'Private/enterprise', fleet: 'NASA UTM heritage', ios: false, android: false, desktop: false } },
+            { id: 'longbow',    name: 'Longbow Group', note: 'private', detail: { vol: 'Private/enterprise', fleet: 'Pegasus Prime', ios: false, android: false, desktop: false } },
+        ];
+
+        // Layout USSs in two rows
+        const USS_Y1 = 440, USS_Y2 = 530;
+        const ROW1_COUNT = 9; // 9 public visible above
+        ussList.forEach((u, i) => {
+            const row = i < ROW1_COUNT ? 0 : 1;
+            const colCount = row === 0 ? ROW1_COUNT : ussList.length - ROW1_COUNT;
+            const colIdx = row === 0 ? i : i - ROW1_COUNT;
+            const xStart = row === 0 ? 100 : 200;
+            const xEnd = row === 0 ? 1100 : 1000;
+            const x = xStart + (colIdx + 0.5) * (xEnd - xStart) / colCount;
+            const y = row === 0 ? USS_Y1 : USS_Y2;
+            const isPrivate = u.note === 'private';
+            const isAnchor = u.note === 'anchor';
+            nodes['uss_' + u.id] = {
+                x, y, w: 92, h: 32,
+                label: u.name,
+                sub: '',
+                cls: 'uss-node' + (isPrivate ? ' private' : '') + (isAnchor ? ' anchor' : ''),
+                kind: 'uss',
+                detail: u.detail,
+                name: u.name,
+                isPrivate, isAnchor
+            };
+        });
+
+        // Drone fleet groups at the bottom
+        const fleets = [
+            { id: 'dji',     name: 'DJI FlightHub', x: 200, w: 130 },
+            { id: 'skydio',  name: 'Skydio Cloud',  x: 360, w: 130 },
+            { id: 'brinc',   name: 'BRINC Lemur',   x: 520, w: 130 },
+            { id: 'auterion',name: 'Auterion Suite',x: 680, w: 130 },
+            { id: 'night',   name: 'Nightingale',   x: 840, w: 130 },
+            { id: 'rid',     name: 'Std RID Drones',x: 1000,w: 130 },
+        ];
+        fleets.forEach(f => {
+            nodes['fl_' + f.id] = {
+                x: f.x + f.w/2, y: 630, w: f.w, h: 32,
+                label: f.name, sub: '', cls: 'fleet-node', kind: 'fleet',
+                fleetName: f.name
+            };
+        });
+
+        // ═══════════════════════════════════════════════════════
+        // EDGE REGISTRY
+        // ═══════════════════════════════════════════════════════
+        const edges = [];
+
+        // TPO ↓ DSS (constraint write)
+        edges.push({ from: 'tpo', to: 'dss', cls: 'cmd', dir: 'down' });
+        // TPO ← DSS (RID display read aggregated through DSS)
+        edges.push({ from: 'dss', to: 'tpo', cls: 'rid', dir: 'up', offsetX: 30 });
+        // ADS-B → TPO direct
+        edges.push({ from: 'adsb', to: 'tpo', cls: 'adsb', dir: 'left' });
+        // FAA SWIM → TPO
+        edges.push({ from: 'atc', to: 'tpo', cls: 'atc', dir: 'right' });
+        // DSS ↔ each USS
+        ussList.forEach(u => {
+            edges.push({ from: 'dss', to: 'uss_' + u.id, cls: 'dss', dir: 'down' });
+        });
+        // USSs → fleets (some illustrative connections)
+        const ussToFleet = [
+            ['aloft','rid'], ['airspacelink','rid'], ['wing','rid'],
+            ['autopylot','dji'], ['avision','dji'], ['uasidekick','rid'],
+            ['anra','auterion'], ['cal','auterion']
+        ];
+        ussToFleet.forEach(([u,f]) => edges.push({ from: 'uss_'+u, to: 'fl_'+f, cls: 'fleet', dir: 'down' }));
+
+        // ═══════════════════════════════════════════════════════
+        // RENDER NODES
+        // ═══════════════════════════════════════════════════════
+        function renderNodes() {
+            Object.entries(nodes).forEach(([id, n]) => {
+                const g = document.createElementNS(svgNS, 'g');
+                g.setAttribute('class', 'node ' + n.cls);
+                g.setAttribute('data-id', id);
+                g.setAttribute('transform', `translate(${n.x - n.w/2}, ${n.y - n.h/2})`);
+
+                const rect = document.createElementNS(svgNS, 'rect');
+                rect.setAttribute('class', 'node-bg');
+                rect.setAttribute('width', n.w);
+                rect.setAttribute('height', n.h);
+                rect.setAttribute('rx', 4);
+                g.appendChild(rect);
+
+                const label = document.createElementNS(svgNS, 'text');
+                label.setAttribute('class', 'node-label');
+                label.setAttribute('x', n.w/2);
+                label.setAttribute('y', n.sub ? n.h/2 - 2 : n.h/2 + 4);
+                label.textContent = n.label;
+                g.appendChild(label);
+
+                if (n.sub) {
+                    const sub = document.createElementNS(svgNS, 'text');
+                    sub.setAttribute('class', 'node-sub');
+                    sub.setAttribute('x', n.w/2);
+                    sub.setAttribute('y', n.h/2 + 12);
+                    sub.textContent = n.sub;
+                    g.appendChild(sub);
+                }
+
+                g.addEventListener('click', () => showDetail(id));
+                nodesG.appendChild(g);
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // RENDER EDGES (curved bezier paths)
+        // ═══════════════════════════════════════════════════════
+        function edgePath(e) {
+            const a = nodes[e.from], b = nodes[e.to];
+            // Anchor points on the edge of each node box (top/bottom edge)
+            let x1 = a.x, y1 = a.y, x2 = b.x, y2 = b.y;
+            if (b.y > a.y) { y1 = a.y + a.h/2; y2 = b.y - b.h/2; }
+            else if (b.y < a.y) { y1 = a.y - a.h/2; y2 = b.y + b.h/2; }
+            else { x1 = a.x + (b.x > a.x ? a.w/2 : -a.w/2); x2 = b.x + (a.x > b.x ? b.w/2 : -b.w/2); }
+            const dx = x2 - x1, dy = y2 - y1;
+            const cx1 = x1, cy1 = y1 + dy * 0.5;
+            const cx2 = x2, cy2 = y2 - dy * 0.5;
+            return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+        }
+
+        function renderEdges() {
+            edges.forEach((e, i) => {
+                const path = document.createElementNS(svgNS, 'path');
+                path.setAttribute('class', 'edge ' + e.cls);
+                path.setAttribute('d', edgePath(e));
+                path.setAttribute('id', 'edge-' + i);
+                edgesG.appendChild(path);
+                e.pathEl = path;
+                e.length = path.getTotalLength();
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // PARTICLE FLOW
+        // ═══════════════════════════════════════════════════════
+        const activeParticles = [];
+
+        function spawnParticle(edgeIdx, opts) {
+            opts = opts || {};
+            const e = edges[edgeIdx];
+            if (!e) return;
+            const c = document.createElementNS(svgNS, 'circle');
+            c.setAttribute('class', 'particle');
+            c.setAttribute('r', opts.size || 2);
+            c.setAttribute('fill', opts.color || edgeColor(e.cls));
+            c.setAttribute('opacity', opts.opacity || 0.85);
+            particlesG.appendChild(c);
+            activeParticles.push({
+                el: c, edge: e,
+                t: 0,
+                speed: opts.speed || (200 + Math.random() * 200),  // px/sec
+                trail: opts.trail || false,
+                onDone: opts.onDone || null,
+                color: opts.color || edgeColor(e.cls),
+            });
+        }
+
+        function edgeColor(cls) {
+            return { cmd: '#ef4444', rid: '#06b6d4', dss: '#10b981', adsb: '#fbbf24', fleet: '#3b82f6', atc: '#fbbf24' }[cls] || '#94a3b8';
+        }
+
+        function tickParticles(dt) {
+            for (let i = activeParticles.length - 1; i >= 0; i--) {
+                const p = activeParticles[i];
+                p.t += p.speed * dt;
+                if (p.t >= p.edge.length) {
+                    if (p.onDone) p.onDone();
+                    p.el.remove();
+                    activeParticles.splice(i, 1);
+                    continue;
+                }
+                const pt = p.edge.pathEl.getPointAtLength(p.t);
+                p.el.setAttribute('cx', pt.x);
+                p.el.setAttribute('cy', pt.y);
+            }
+        }
+
+        // Background flow generator — keeps the network feeling alive
+        let flowAccum = 0;
+        function backgroundFlow(dt) {
+            flowAccum += dt;
+            // Spawn RID telemetry particles upward through DSS to TPO
+            if (flowAccum > 0.05) {
+                flowAccum = 0;
+                // Random USS-DSS edge: fleets → USS → DSS → TPO
+                const fleetEdges = edges.map((e,i) => ({e,i})).filter(o => o.e.cls === 'fleet');
+                const dssEdges = edges.map((e,i) => ({e,i})).filter(o => o.e.cls === 'dss');
+                if (Math.random() < 0.7 && dssEdges.length > 0) {
+                    // Pick a USS, send a packet up to DSS
+                    const r = dssEdges[Math.floor(Math.random() * dssEdges.length)];
+                    // simulate "up" by spawning on the dss-uss edge but reversing direction (use t=length to 0)
+                    spawnParticleReverse(r.i, { color: '#06b6d4', size: 1.5, opacity: 0.6, speed: 160, onDone: () => {
+                        // Then continue from DSS to TPO via the rid edge
+                        const ridEdgeIdx = edges.findIndex(ed => ed.from === 'dss' && ed.to === 'tpo');
+                        if (ridEdgeIdx >= 0) spawnParticle(ridEdgeIdx, { color: '#06b6d4', size: 1.8, opacity: 0.7, speed: 240 });
+                    }});
+                }
+                // ADS-B targets continually arriving
+                if (Math.random() < 0.5) {
+                    const adsbIdx = edges.findIndex(ed => ed.from === 'adsb' && ed.to === 'tpo');
+                    if (adsbIdx >= 0) spawnParticle(adsbIdx, { color: '#fbbf24', size: 1.5, opacity: 0.55, speed: 220 });
+                }
+                // Fleet → USS telemetry
+                if (Math.random() < 0.6 && fleetEdges.length > 0) {
+                    const f = fleetEdges[Math.floor(Math.random() * fleetEdges.length)];
+                    spawnParticleReverse(f.i, { color: '#3b82f6', size: 1.4, opacity: 0.5, speed: 140 });
+                }
+            }
+        }
+
+        function spawnParticleReverse(edgeIdx, opts) {
+            // Same as spawnParticle but moves t from length → 0
+            opts = opts || {};
+            const e = edges[edgeIdx];
+            if (!e) return;
+            const c = document.createElementNS(svgNS, 'circle');
+            c.setAttribute('class', 'particle');
+            c.setAttribute('r', opts.size || 2);
+            c.setAttribute('fill', opts.color || edgeColor(e.cls));
+            c.setAttribute('opacity', opts.opacity || 0.85);
+            particlesG.appendChild(c);
+            activeParticles.push({
+                el: c, edge: e,
+                t: e.length,
+                speed: -(opts.speed || 200),
+                onDone: opts.onDone || null,
+                reverse: true,
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // CONSTRAINT INJECTION DEMO
+        // ═══════════════════════════════════════════════════════
+        let constraintCount = 0;
+        const cntCmd = document.getElementById('cnt-cmd');
+        const statusEl = document.getElementById('status-bar');
+
+        function setStatus(msg, color) {
+            statusEl.textContent = msg;
+            statusEl.style.color = color || '#06b6d4';
+            statusEl.style.borderColor = (color || '#06b6d4') + '66';
+        }
+
+        function injectConstraint() {
+            constraintCount++;
+            cntCmd.textContent = constraintCount;
+            setStatus('SYS_STATUS: P1 CONSTRAINT INJECTED — F3548 BROADCAST IN PROGRESS', '#ef4444');
+
+            // 1. Pulse from TPO outward
+            pulseAt(nodes.tpo.x, nodes.tpo.y, '#ef4444');
+
+            // 2. Particle from TPO down to DSS
+            const tpoDssIdx = edges.findIndex(e => e.from === 'tpo' && e.to === 'dss');
+            if (tpoDssIdx < 0) return;
+            spawnParticle(tpoDssIdx, {
+                color: '#ef4444', size: 4, opacity: 1, speed: 320,
+                onDone: () => {
+                    pulseAt(nodes.dss.x, nodes.dss.y, '#ef4444');
+                    // 3. Fan-out from DSS to every USS
+                    edges.forEach((e, i) => {
+                        if (e.from === 'dss' && e.to.startsWith('uss_')) {
+                            setTimeout(() => {
+                                spawnParticle(i, {
+                                    color: '#ef4444', size: 3, opacity: 0.95, speed: 280,
+                                    onDone: () => {
+                                        const ussNode = nodes[e.to];
+                                        pulseAt(ussNode.x, ussNode.y, '#ef4444', 0.6);
+                                    }
+                                });
+                            }, Math.random() * 400);
+                        }
+                    });
+                    setTimeout(() => {
+                        setStatus('SYS_STATUS: CONSTRAINT ACKNOWLEDGED BY ALL SUBSCRIBED USSs — DECONFLICTION ACTIVE', '#10b981');
+                    }, 1400);
+                    setTimeout(() => {
+                        setStatus('SYS_STATUS: UTM FABRIC NOMINAL — 17 USS NODES SUBSCRIBED — RID FLOWS ACTIVE');
+                    }, 4000);
+                }
+            });
+        }
+
+        function pulseAt(x, y, color, scale) {
+            scale = scale || 1;
+            const ring = document.createElementNS(svgNS, 'circle');
+            ring.setAttribute('class', 'pulse-ring');
+            ring.setAttribute('cx', x); ring.setAttribute('cy', y);
+            ring.setAttribute('r', 4);
+            ring.setAttribute('stroke', color);
+            ring.setAttribute('stroke-width', 2);
+            ring.setAttribute('opacity', 0.9);
+            pulsesG.appendChild(ring);
+            const start = performance.now();
+            function step() {
+                const t = (performance.now() - start) / (900 * scale);
+                if (t >= 1) { ring.remove(); return; }
+                ring.setAttribute('r', 4 + t * 60 * scale);
+                ring.setAttribute('opacity', 0.9 * (1 - t));
+                requestAnimationFrame(step);
+            }
+            step();
+        }
+
+        function burstRID() {
+            setStatus('SYS_STATUS: NET-RID TELEMETRY BURST — ALL USS FLOWS AT MAX RATE', '#3b82f6');
+            // Rapid-fire fleet → USS → DSS → TPO chains
+            for (let i = 0; i < 30; i++) {
+                setTimeout(() => {
+                    const fleetEdges = edges.map((e,idx) => ({e,idx})).filter(o => o.e.cls === 'fleet');
+                    const dssEdges = edges.map((e,idx) => ({e,idx})).filter(o => o.e.cls === 'dss');
+                    if (fleetEdges.length === 0 || dssEdges.length === 0) return;
+                    const f = fleetEdges[Math.floor(Math.random() * fleetEdges.length)];
+                    spawnParticleReverse(f.idx, {
+                        color: '#3b82f6', size: 2, opacity: 0.85, speed: 280,
+                        onDone: () => {
+                            const ussId = edges[f.idx].from;
+                            const dEdge = edges.findIndex(e => e.from === 'dss' && e.to === ussId);
+                            if (dEdge >= 0) spawnParticleReverse(dEdge, {
+                                color: '#06b6d4', size: 2, opacity: 0.8, speed: 240,
+                                onDone: () => {
+                                    const ridIdx = edges.findIndex(ed => ed.from === 'dss' && ed.to === 'tpo');
+                                    if (ridIdx >= 0) spawnParticle(ridIdx, { color: '#06b6d4', size: 2.5, opacity: 0.95, speed: 320 });
+                                }
+                            });
+                        }
+                    });
+                }, i * 60);
+            }
+            setTimeout(() => setStatus('SYS_STATUS: UTM FABRIC NOMINAL — 17 USS NODES SUBSCRIBED — RID FLOWS ACTIVE'), 3500);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // DETAIL PANEL
+        // ═══════════════════════════════════════════════════════
+        const detailPanel = document.getElementById('detail-panel');
+
+        function showDetail(id) {
+            const n = nodes[id];
+            if (!n) return;
+            detailPanel.className = 'active ' + n.kind;
+            const tag = document.getElementById('d-tag');
+            const name = document.getElementById('d-name');
+            const role = document.getElementById('d-role');
+            const rows = document.getElementById('d-rows');
+            rows.innerHTML = '';
+
+            function row(k, v) {
+                const r = document.createElement('div');
+                r.className = 'detail-row';
+                r.innerHTML = `<span class="k">${k}</span><span class="v">${v}</span>`;
+                rows.appendChild(r);
+            }
+
+            if (id === 'tpo') {
+                tag.textContent = 'SOVEREIGN OVERLAY';
+                name.textContent = 'TPO Sovereign Node';
+                role.textContent = 'Net-RID Display Provider · Constraint Provider';
+                row('LAYER', 'Above the F3411/F3548 stack');
+                row('READS', 'Net-RID flights · ADS-B · FAA SWIM (TFR/NOTAM)');
+                row('WRITES', '<code>PUT /uss/v1/constraint_references/{id}</code>');
+                row('PECK MAP', 'DIVERT · DESCEND · DISENGAGE · DISTANCE → Constraint volumes');
+                row('LIABILITY', 'Communications/governance utility — drone OEM retains kinetic');
+            } else if (id === 'dss') {
+                tag.textContent = 'DISCOVERY LAYER';
+                name.textContent = 'InterUSS DSS';
+                role.textContent = 'Discovery & Synchronization Service';
+                row('SPEC', 'F3411 §4.8 + F3548 §5.4');
+                row('IMPL', 'github.com/interuss/dss · CockroachDB + S2 geometry');
+                row('STORES', 'Entity locations only — no PII, no operational data');
+                row('PURPOSE', 'Tells each USS which other USSs hold entities in a volume');
+                row('TPO USAGE', 'Federate with FAA-blessed instance · own instance for tribal zones');
+            } else if (id === 'adsb') {
+                tag.textContent = 'TRUTH FABRIC';
+                name.textContent = 'ADS-B Surveillance Feed';
+                role.textContent = 'Manned aviation position broadcast — P0 priority';
+                row('FREQ', '1090 MHz Extended Squitter · 978 MHz UAT (US sub-FL180)');
+                row('STD', 'RTCA DO-260B / DO-282B');
+                row('INGEST', 'Local SDR at Blade (RTL-SDR / dump1090 / dump978)');
+                row('LATENCY', '~60 ms / 6 ft blind travel local · vs ~480 ms / 56 ft cloud');
+                row('BACKSTOP', 'FlightAware Firehose · ADS-B Exchange · OpenSky · uAvionix');
+                row('NOTE', 'Drones do not broadcast ADS-B Out below 400 ft AGL — manned only');
+            } else if (id === 'atc') {
+                tag.textContent = 'AUTHORITY FEEDS';
+                name.textContent = 'FAA SWIM';
+                role.textContent = 'System Wide Information Management';
+                row('PROVIDES', 'TFRs · NOTAMs · Special Use Airspace · NAS state');
+                row('ACCESS', 'SWIM Cloud Distribution Service (SCDS) · JMS messages');
+                row('TPO USE', 'Pre-flight constraint sourcing · live TFR ingestion');
+                row('LAANC', 'FAA Data Exchange — separate USS authorization path');
+            } else if (id.startsWith('uss_')) {
+                const u = ussList.find(x => 'uss_' + x.id === id);
+                tag.textContent = u.note === 'private' ? 'NON-PUBLIC USS' : 'FAA-APPROVED USS';
+                name.textContent = u.name;
+                role.textContent = u.note === 'anchor' ? 'Tier-1 Anchor · Strategic Partner Candidate' : (u.note === 'private' ? 'Enterprise / Defense / EU' : 'Public LAANC Service');
+                row('VOLUME', u.detail.vol);
+                row('PLATFORM', u.detail.fleet);
+                row('iOS', u.detail.ios ? '✓' : '—');
+                row('Android', u.detail.android ? '✓' : '—');
+                row('Desktop', u.detail.desktop ? '✓' : '—');
+                row('TPO IFACE', 'F3411 Net-RID SP · F3548 USS-USS · DSS sync');
+            } else if (id.startsWith('fl_')) {
+                tag.textContent = 'OPERATOR / FLEET';
+                name.textContent = n.fleetName;
+                const fleetInfo = {
+                    'DJI FlightHub': { iface: 'REST + MQTT telemetry · DJI Cloud API', note: 'Dominant commercial fleet' },
+                    'Skydio Cloud': { iface: 'REST + WebSocket', note: 'Public Safety platform · Auterion stack' },
+                    'BRINC Lemur': { iface: 'Lemur Connect REST', note: 'Tactical / law-enforcement focused' },
+                    'Auterion Suite': { iface: 'MAVLink + REST', note: 'Defense and OEM backbone (Skydio underlying)' },
+                    'Nightingale': { iface: 'Mission API', note: 'DFR drone-in-a-box · direct partner path' },
+                    'Std RID Drones': { iface: 'ASTM F3411 Standard Remote ID + Broadcast Module', note: 'Default for any FAA Remote-ID compliant aircraft' },
+                };
+                const info = fleetInfo[n.fleetName] || { iface: '—', note: '—' };
+                role.textContent = info.note;
+                row('INTERFACE', info.iface);
+                row('TPO PATH', 'Direct API for telemetry richer than RID requires');
+                row('OR', 'Telemetry passes via USS → DSS → TPO Net-RID Display');
+            }
+        }
+
+        function closeDetail() {
+            detailPanel.className = '';
+        }
+        window.closeDetail = closeDetail;
+
+        // ═══════════════════════════════════════════════════════
+        // LAYER TOUR
+        // ═══════════════════════════════════════════════════════
+        let tourTimeline = [];
+        function tourLayers() {
+            const sequence = [
+                { id: 'tpo', msg: 'LAYER TOUR · TPO SOVEREIGN OVERLAY — sits above the standards', color: '#ef4444' },
+                { id: 'dss', msg: 'LAYER TOUR · INTERUSS DSS — discovery hub, no PII stored', color: '#10b981' },
+                { id: 'uss_aloft', msg: 'LAYER TOUR · ALOFT — 70% of LAANC volume, anchor candidate', color: '#06b6d4' },
+                { id: 'uss_anra', msg: 'LAYER TOUR · NON-PUBLIC USS — defense + EU U-space', color: '#06b6d4' },
+                { id: 'fl_dji', msg: 'LAYER TOUR · DJI FLEET — dominant commercial operator', color: '#3b82f6' },
+                { id: 'adsb', msg: 'LAYER TOUR · ADS-B — manned aviation truth at the Blade', color: '#fbbf24' },
+            ];
+            tourTimeline.forEach(t => clearTimeout(t));
+            tourTimeline = [];
+            sequence.forEach((s, i) => {
+                tourTimeline.push(setTimeout(() => {
+                    showDetail(s.id);
+                    setStatus('SYS_STATUS: ' + s.msg, s.color);
+                    const n = nodes[s.id];
+                    if (n) pulseAt(n.x, n.y, s.color, 0.8);
+                }, i * 1800));
+            });
+            tourTimeline.push(setTimeout(() => {
+                setStatus('SYS_STATUS: UTM FABRIC NOMINAL — 17 USS NODES SUBSCRIBED — RID FLOWS ACTIVE');
+                closeDetail();
+            }, sequence.length * 1800));
+        }
+
+        function resetView() {
+            constraintCount = 0;
+            cntCmd.textContent = 0;
+            tourTimeline.forEach(t => clearTimeout(t));
+            tourTimeline = [];
+            closeDetail();
+            setStatus('SYS_STATUS: VIEW RESET — UTM FABRIC NOMINAL', '#fbbf24');
+            setTimeout(() => setStatus('SYS_STATUS: UTM FABRIC NOMINAL — 17 USS NODES SUBSCRIBED — RID FLOWS ACTIVE'), 1500);
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // BIND CONTROLS
+        // ═══════════════════════════════════════════════════════
+        document.getElementById('btn-constraint').addEventListener('click', injectConstraint);
+        document.getElementById('btn-burst').addEventListener('click', burstRID);
+        document.getElementById('btn-tour').addEventListener('click', tourLayers);
+        document.getElementById('btn-reset').addEventListener('click', resetView);
+
+        // ═══════════════════════════════════════════════════════
+        // ANIMATION LOOP
+        // ═══════════════════════════════════════════════════════
+        let lastT = performance.now();
+        function loop() {
+            const now = performance.now();
+            const dt = Math.min((now - lastT) / 1000, 0.05);
+            lastT = now;
+            backgroundFlow(dt);
+            tickParticles(dt);
+
+            // Subtle counter drift to feel live
+            if (Math.random() < 0.02) {
+                const ridEl = document.getElementById('cnt-rid');
+                const v = 1300 + Math.floor(Math.random() * 280);
+                ridEl.textContent = (v / 1000).toFixed(1) + 'K';
+            }
+            if (Math.random() < 0.02) {
+                const adsbEl = document.getElementById('cnt-adsb');
+                adsbEl.textContent = 32 + Math.floor(Math.random() * 14);
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        // INIT
+        renderEdges();
+        renderNodes();
+        loop();
+    })();
+    </script>
+</body>
+</html>
