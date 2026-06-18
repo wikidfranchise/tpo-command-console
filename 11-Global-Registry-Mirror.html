@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TPO | Global Registry Mirror — Whole-Sky Interconnect &amp; Failover</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #020617; font-family: sans-serif; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        #scene-container { flex-grow: 1; position: relative; overflow: hidden; background: radial-gradient(circle at 50% 28%, #0a1a2e 0%, #020617 70%); }
+        #net-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+
+        #status-bar { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.78); border: 1px solid #334155; padding: 10px 18px; font-family: 'Courier New', monospace; font-size: 14px; color: #22d3ee; z-index: 100; letter-spacing: 1px; backdrop-filter: blur(4px); transition: color 0.4s; max-width: 60%; }
+
+        #phase-info { position: absolute; top: 70px; left: 20px; background: rgba(15,23,42,0.85); border: 1px solid #1e293b; border-left: 3px solid #06b6d4; padding: 14px 20px 14px 18px; z-index: 100; max-width: 380px; backdrop-filter: blur(4px); }
+        .phase-num { font-family: 'Courier New', monospace; font-size: 11px; color: #94a3b8; letter-spacing: 0.3em; margin-bottom: 6px; }
+        .phase-title { font-size: 19px; font-weight: 400; letter-spacing: 0.02em; color: #e2e8f0; line-height: 1.2; }
+        .phase-sub { font-size: 13px; color: #cbd5e1; margin-top: 4px; letter-spacing: 0.04em; }
+
+        #brand-mark { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); text-align: center; z-index: 100; pointer-events: none; }
+        .brand-title { font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 0.3em; color: #22d3ee; }
+        .brand-sub { font-family: 'Courier New', monospace; font-size: 10px; letter-spacing: 0.28em; color: #94a3b8; margin-top: 4px; }
+
+        #count-strip { position: absolute; top: 20px; right: 20px; display: flex; gap: 8px; z-index: 100; }
+        .count-chip { background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 8px 14px; font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 0.1em; color: #cbd5e1; backdrop-filter: blur(4px); }
+        .count-chip strong { font-weight: bold; margin-left: 6px; }
+        .count-chip.leases strong { color: #06b6d4; }
+        .count-chip.feeds strong { color: #3b82f6; }
+        .count-chip.blocks strong { color: #10b981; }
+
+        #legend { position: absolute; bottom: 20px; left: 20px; display: flex; flex-direction: column; gap: 6px; z-index: 100; background: rgba(0,0,0,0.7); border: 1px solid #334155; padding: 10px 14px; backdrop-filter: blur(4px); }
+        .legend-row { display: flex; align-items: center; gap: 10px; font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 0.06em; color: #e2e8f0; }
+        .legend-swatch { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+
+        #controls { height: 70px; background: rgba(15,23,42,0.95); border-top: 1px solid #1e293b; display: flex; align-items: center; padding: 0 20px; gap: 10px; z-index: 1000; flex-wrap: wrap; }
+        .ctrl-label { color: #94a3b8; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 0.25em; font-weight: bold; margin-right: 8px; }
+        .step-btn { background: #0f172a; border: 1px solid #334155; color: #cbd5e1; padding: 12px 18px; font-size: 13px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.3s; border-radius: 4px; font-family: sans-serif; }
+        .step-btn:hover { background: #1e293b; color: white; border-color: #06b6d4; }
+        .step-btn.active { background: #1e293b; color: white; box-shadow: 0 0 0 1px currentColor inset; }
+        .step-btn.terra-btn { border-color: #fbbf24; color: #fbbf24; }
+        .step-btn.terra-btn:hover { background: rgba(251,191,36,0.15); box-shadow: 0 0 12px rgba(251,191,36,0.4); }
+        .step-btn.node-btn { border-color: #ef4444; color: #ef4444; }
+        .step-btn.node-btn:hover { background: rgba(239,68,68,0.15); box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+        .step-btn.shroud-btn { border-color: #a855f7; color: #a855f7; }
+        .step-btn.shroud-btn:hover { background: rgba(168,85,247,0.15); box-shadow: 0 0 12px rgba(168,85,247,0.4); }
+        .step-btn.reset-btn { border-color: #06b6d4; color: #06b6d4; margin-left: auto; }
+        .step-btn.reset-btn:hover { background: rgba(6,182,212,0.15); }
+
+        @media (max-width: 820px) {
+            #phase-info { max-width: 50%; padding: 10px 14px; }
+            .phase-title { font-size: 14px; }
+            #count-strip, #legend { display: none; }
+            .step-btn { padding: 10px 10px; font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="scene-container">
+        <canvas id="net-canvas"></canvas>
+
+        <div id="status-bar">SYS_STATUS: WHOLE-SKY NOMINAL — REVIVE→TERRESTRIAL · UTM RID INGESTED · MIRROR SYNCED</div>
+
+        <div id="phase-info">
+            <div class="phase-num">WHOLE-SKY INTERCONNECT · FAILOVER MAP</div>
+            <div class="phase-title">Terrestrial-default, satellite-backup, UTM-federated</div>
+            <div class="phase-sub">One shared sky — Revive direct, external fleets via UTM; TPO routes all &amp; commands any drone to yield</div>
+        </div>
+
+        <div id="brand-mark">
+            <div class="brand-title">THE PECKING ORDER</div>
+            <div class="brand-sub">WHOLE-SKY INTERCONNECT</div>
+        </div>
+
+        <div id="count-strip">
+            <div class="count-chip leases">LEASES <strong id="cnt-leases">0</strong></div>
+            <div class="count-chip feeds">UTM FEEDS <strong id="cnt-feeds">0</strong></div>
+            <div class="count-chip blocks">BLOCKS <strong id="cnt-blocks">0</strong></div>
+        </div>
+
+        <div id="legend">
+            <div class="legend-row"><div class="legend-swatch" style="background:#06b6d4"></div>REVIVE TELEMETRY — DRONE → SOVEREIGN NODE (TERRESTRIAL)</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#3b82f6"></div>UTM RID INGEST — EXTERNAL FLEET → USS → TPO (+LATENCY)</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#fbbf24"></div>4D LEASE / CONSTRAINT — TPO → DRONE &amp; USS</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#10b981"></div>REGISTRY SYNC — MIRROR ms-REPLICATION</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#a855f7"></div>PRIORITY · 4D SHROUD — TPO ISSUES YIELD CMD TO FLIGHT CTRL</div>
+            <div class="legend-row"><div class="legend-swatch" style="background:#f97316"></div>YIELDING — DRONE REROUTES ON TPO COMMAND</div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <span class="ctrl-label">FAILOVER DRILL</span>
+        <button class="step-btn terra-btn" id="btn-terra">▲ Terrestrial Link Loss</button>
+        <button class="step-btn node-btn" id="btn-node">◆ Node Outage (SN-02)</button>
+        <button class="step-btn shroud-btn" id="btn-shroud">✦ Priority / 4D Shroud</button>
+        <button class="step-btn reset-btn" id="btn-reset">↻ Auto Cycle</button>
+    </div>
+
+    <script>
+    (function () {
+        'use strict';
+        // ===================================================================
+        // TPO · Module 11 · Global Registry Mirror — Whole-Sky Interconnect
+        // Revive Drones LLC · 63/968,537 · 63/983,173 · 63/996,198
+        //   • Revive fleet → terrestrial Sovereign Nodes by default
+        //     (LEO satellite is the BACKUP uplink, used only on terrestrial loss)
+        //   • External fleets → their UTM/USS → InterUSS DSS interconnect → TPO
+        //     (aggregated RID, higher latency). TPO fuses one whole-sky picture.
+        //   • Global Registry Mirror replicates the registry on a ms interval
+        //     and assumes authority on outage.
+        // ===================================================================
+        var W = 1600, H = 1000;
+        var canvas = document.getElementById('net-canvas');
+        var ctx = canvas.getContext('2d');
+        var statusEl = document.getElementById('status-bar');
+
+        var C = {
+            tele: '#06b6d4', utm: '#3b82f6', lease: '#fbbf24', sync: '#10b981', prio: '#a855f7',
+            revive: '#22d3ee', fleet: '#3b82f6', yield: '#f97316', manned: '#ef4444',
+            satOk: '#10b981', dead: '#ef4444', node: '#06b6d4', mirror: '#10b981', dss: '#38bdf8', uss: '#3b82f6',
+            text: '#f1f5f9', slate: '#cbd5e1', dim: '#94a3b8', line: '#1e293b', line2: '#334155', star: '#334155'
+        };
+
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var cw = 0, ch = 0, scale = 1, offX = 0, offY = 0;
+
+        // ---- model -------------------------------------------------------
+        var t = 0, t0 = performance.now(), last = t0;
+        var phase = 'NOMINAL', forced = null, satActive = false, terraDown = false, offline = null, surgeUntil = 0;
+        var acc = { leases: 0, feeds: 0, blocks: 0 };
+
+        var mirror = { x: 1320, y: 116 };
+        var sats = [{ phase: 0 }, { phase: 0.33 }, { phase: 0.66 }];
+        var satArc = { x0: 430, x1: 1120, y: 148, amp: 16 };
+
+        var sns = [
+            { id: 'SN-01', x: 290, y: 442, host: 'FIRE / EMS' },
+            { id: 'SN-02', x: 560, y: 442, host: 'HOSPITAL' },
+            { id: 'SN-03', x: 830, y: 442, host: 'TRIBAL / CASINO' }
+        ];
+        var dss = { x: 1010, y: 590, label: 'UTM INTERCONNECT', sub: 'InterUSS DSS · RID + CONSTRAINT' };
+        var ussList = [
+            { id: 'aloft', x: 1140, y: 700, name: 'Aloft' },
+            { id: 'wing', x: 1300, y: 700, name: 'Wing OpenSky' },
+            { id: 'airmatrix', x: 1462, y: 700, name: 'AirMatrix' }
+        ];
+        function uss(id) { for (var i = 0; i < ussList.length; i++) if (ussList[i].id === id) return ussList[i]; return ussList[0]; }
+
+        // Revive fleet (terrestrial-native) — left zone
+        var revive = [];
+        var rdef = [[360, 850], [540, 896], [720, 850], [900, 896]];
+        for (var i = 0; i < rdef.length; i++) { revive.push({ x: rdef[i][0], ox: rdef[i][0], y: rdef[i][1], base: rdef[i][1], ph: Math.random() * 6.28, pulse: Math.random() * 2.4, yielding: false }); }
+        // External fleets (UTM-federated) — right zone, each bound to a USS
+        var fleet = [
+            { x: 1060, ox: 1060, base: 852, op: 'DJI', uss: 'aloft', ph: 0.4, pulse: 1.1, yielding: false },
+            { x: 1240, ox: 1240, base: 892, op: 'SKYDIO', uss: 'wing', ph: 1.7, pulse: 0.6, yielding: false },
+            { x: 1420, ox: 1420, base: 856, op: 'STD RID', uss: 'airmatrix', ph: 3.0, pulse: 1.9, yielding: false }
+        ];
+        for (var j = 0; j < fleet.length; j++) { fleet[j].y = fleet[j].base; }
+        var tagCount = revive.length + fleet.length;
+
+        var heli = { x: 160, y: 720, rot: 0 };
+        var shroud = { x: 280, y: 884, vx: 46, r: 78 };
+        var ledger = [];
+        for (var b = 0; b < 10; b++) ledger.push({ h: rndHash(), born: -b });
+        var packets = [];
+        var emit = {};
+        var stars = [];
+        for (var s = 0; s < 80; s++) stars.push({ x: Math.random() * W, y: Math.random() * 300, r: Math.random() * 1.2 + 0.3, tw: Math.random() * 6.28 });
+        var sky = [];
+        var sxp = 70; while (sxp < W - 50) { var bw0 = 26 + Math.random() * 44, bh0 = 12 + Math.random() * 36; sky.push({ x: sxp, w: bw0, h: bh0 }); sxp += bw0 + 8 + Math.random() * 14; }
+
+        function rndHash() { var c = '0123456789ABCDEF', r = ''; for (var i = 0; i < 4; i++) r += c[(Math.random() * 16) | 0]; return r; }
+
+        function resize() {
+            var host = document.getElementById('scene-container');
+            cw = host.clientWidth; ch = host.clientHeight;
+            canvas.width = cw * dpr; canvas.height = ch * dpr;
+            scale = Math.min(cw / W, ch / H);
+            offX = (cw - W * scale) / 2; offY = (ch - H * scale) / 2;
+        }
+        window.addEventListener('resize', resize);
+
+        function satPos(sp) { var u = (sp.phase + t * 0.010) % 1; return { x: satArc.x0 + (satArc.x1 - satArc.x0) * u, y: satArc.y + Math.sin(u * Math.PI * 2) * satArc.amp }; }
+        function nearestSat(x) { var best = null, bd = 1e9; for (var i = 0; i < sats.length; i++) { var p = satPos(sats[i]); var d = Math.abs(p.x - x); if (d < bd) { bd = d; best = p; } } return best; }
+        function nearestSN(x) { var best = null, bd = 1e9; for (var i = 0; i < sns.length; i++) { if (offline === sns[i].id) continue; var d = Math.abs(sns[i].x - x); if (d < bd) { bd = d; best = sns[i]; } } return best || sns[0]; }
+
+        function spawn(path, color, opt) {
+            opt = opt || {};
+            var len = 0; for (var i = 1; i < path.length; i++) len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+            packets.push({ path: path, len: len || 1, color: color, p: 0, spd: opt.spd || 560, size: opt.size || 3.2, onEnd: opt.onEnd });
+        }
+        function posAt(pk, f) {
+            f = Math.max(0, Math.min(1, f)); var target = f * pk.len, accm = 0, path = pk.path;
+            for (var i = 1; i < path.length; i++) {
+                var a = path[i - 1], bb = path[i], segl = Math.hypot(bb.x - a.x, bb.y - a.y) || 1e-6;
+                if (accm + segl >= target) { var tt = (target - accm) / segl; return { x: a.x + (bb.x - a.x) * tt, y: a.y + (bb.y - a.y) * tt }; }
+                accm += segl;
+            }
+            var lp = path[path.length - 1]; return { x: lp.x, y: lp.y };
+        }
+        function tick(key, dt, interval, fn) { emit[key] = (emit[key] || 0) + dt; if (emit[key] >= interval) { emit[key] = 0; fn(); } }
+        function appendLedger() { ledger.push({ h: rndHash(), born: t }); if (ledger.length > 10) ledger.shift(); acc.blocks++; }
+
+        // ---- phase / failover state machine -----------------------------
+        function updatePhase() {
+            if (forced) { phase = forced; }
+            else {
+                var CY = 46, tt = t % CY, p = 'NOMINAL';
+                if (tt >= 11 && tt < 19) p = 'TERRA_LINK_LOSS';
+                else if (tt >= 27 && tt < 36) p = 'NODE_OUTAGE';
+                phase = p;
+            }
+            terraDown = phase === 'TERRA_LINK_LOSS';
+            satActive = phase === 'TERRA_LINK_LOSS';
+            offline = phase === 'NODE_OUTAGE' ? 'SN-02' : null;
+        }
+
+        function updateEmitters(dt) {
+            // Revive telemetry — terrestrial by default; LEO satellite only on terrestrial loss
+            tick('revive', dt, 0.46, function () {
+                var d = revive[(Math.random() * revive.length) | 0];
+                var dr = { x: d.x, y: d.y }, sn = nearestSN(d.x);
+                if (!terraDown) { spawn([dr, { x: sn.x, y: sn.y }], C.tele, { spd: 600, onEnd: function () { acc.leases++; } }); }
+                else { spawn([dr, nearestSat(d.x), { x: sn.x, y: sn.y }], C.tele, { spd: 540, onEnd: function () { acc.leases++; } }); }
+            });
+            // External fleet → USS → DSS interconnect → TPO  (aggregated RID, higher latency)
+            tick('utm', dt, 0.5, function () {
+                var f = fleet[(Math.random() * fleet.length) | 0], u = uss(f.uss), sn = nearestSN(dss.x);
+                spawn([{ x: f.x, y: f.y }, { x: u.x, y: u.y }, { x: dss.x, y: dss.y }, { x: sn.x, y: sn.y }], C.utm, { spd: 330, size: 3, onEnd: function () { acc.feeds++; } });
+            });
+            // 4D lease / command to Revive drones
+            tick('lease', dt, 0.62, function () {
+                var sn = sns[(Math.random() * sns.length) | 0]; if (offline === sn.id) return;
+                var pool = revive.concat(fleet);
+                var target = null, bd = 1e9; for (var i = 0; i < pool.length; i++) { var dd = Math.abs(pool[i].x - sn.x); if (dd < bd) { bd = dd; target = pool[i]; } }
+                if (!target) return;
+                spawn([{ x: sn.x, y: sn.y }, { x: target.x, y: target.y }], C.lease, { size: 3.6, onEnd: appendLedger });
+            });
+            // TPO constraint pushed back out to external operators via the interconnect
+            tick('constraint', dt, 1.25, function () {
+                var sn = nearestSN(dss.x); var u = ussList[(Math.random() * ussList.length) | 0];
+                spawn([{ x: sn.x, y: sn.y }, { x: dss.x, y: dss.y }, { x: u.x, y: u.y }], C.lease, { spd: 420, size: 3, onEnd: appendLedger });
+            });
+            // Registry sync to Global Registry Mirror — terrestrial backbone, or LEO on terrestrial loss
+            tick('sync', dt, 0.85, function () {
+                var sn = sns[(Math.random() * sns.length) | 0]; if (offline === sn.id) return;
+                if (!terraDown) { spawn([{ x: sn.x, y: sn.y }, { x: 1540, y: sn.y }, { x: 1540, y: 150 }, mirror], C.sync, { size: 3 }); }
+                else { spawn([{ x: sn.x, y: sn.y }, nearestSat(sn.x), mirror], C.sync, { size: 3.2, spd: 560 }); }
+            });
+            // Mirror -> nodes heartbeat (serves the missing node on outage)
+            tick('back', dt, 1.05, function () {
+                var tgt = offline ? sns[1] : sns[(t | 0) % sns.length];
+                if (!terraDown) { spawn([mirror, { x: 1540, y: 150 }, { x: 1540, y: tgt.y }, { x: tgt.x, y: tgt.y }], C.sync, { size: 2.6 }); }
+                else { spawn([mirror, nearestSat(tgt.x), { x: tgt.x, y: tgt.y }], C.sync, { size: 2.8 }); }
+            });
+            // Sovereign Node peer mesh
+            tick('mesh', dt, 1.4, function () {
+                if (offline !== 'SN-02') { spawn([{ x: sns[0].x, y: sns[0].y }, { x: sns[1].x, y: sns[1].y }], C.sync, { size: 2.2, spd: 480 }); spawn([{ x: sns[2].x, y: sns[2].y }, { x: sns[1].x, y: sns[1].y }], C.sync, { size: 2.2, spd: 480 }); }
+                else { spawn([{ x: sns[0].x, y: sns[0].y }, { x: sns[2].x, y: sns[2].y }], C.sync, { size: 2.6, spd: 520 }); }
+            });
+            // Priority / 4D shroud
+            tick('prio', dt, 1.4, function () {
+                var sn = nearestSN(heli.x);
+                spawn([{ x: heli.x, y: heli.y }, { x: sn.x, y: sn.y }], C.prio, { size: 3.4 });
+            });
+            // TPO terrestrial issues the yield command to ANY drone (Revive or external) whose flight controller must yield
+            var ycRate = (t < surgeUntil) ? 0.18 : 0.3;
+            tick('yieldcmd', dt, ycRate, function () {
+                var yd = []; for (var i = 0; i < revive.length; i++) if (revive[i].yielding) yd.push(revive[i]);
+                for (var j = 0; j < fleet.length; j++) if (fleet[j].yielding) yd.push(fleet[j]);
+                if (!yd.length) return;
+                var d = yd[(Math.random() * yd.length) | 0], sn = nearestSN(d.x);
+                spawn([{ x: sn.x, y: sn.y }, { x: d.x, y: d.y }], C.prio, { spd: 760, size: 3 });
+            });
+        }
+
+        function updatePackets(dt) {
+            for (var i = packets.length - 1; i >= 0; i--) { var pk = packets[i]; pk.p += (pk.spd * dt) / pk.len; if (pk.p >= 1) { if (pk.onEnd) pk.onEnd(); packets.splice(i, 1); } }
+        }
+
+        function yieldDrone(d, dt) {
+            var surge = t < surgeUntil, yieldR = shroud.r + 52;
+            var bob = Math.sin(t * 1.1 + d.ph) * 7;
+            var dx = d.ox - shroud.x, dy = d.base - shroud.y, hdist = Math.hypot(dx, dy);
+            if (hdist < 1) { dx = 0; dy = 1; hdist = 1; }
+            var tx, ty;
+            if (hdist < yieldR) {
+                var f = yieldR / hdist;
+                tx = Math.max(340, Math.min(1450, shroud.x + dx * f));
+                ty = Math.max(800, Math.min(946, shroud.y + dy * f));
+                d.yielding = true;
+            } else { tx = d.ox; ty = d.base + bob; d.yielding = false; }
+            var k = d.yielding ? 0.08 : 0.045;
+            d.x += (tx - d.x) * k; d.y += (ty - d.y) * k;
+            d.pulse -= dt; if (d.pulse <= 0) d.pulse = 2.2 + Math.random() * 1.2;
+        }
+
+        function updateWorld(dt) {
+            var surge = t < surgeUntil, curR = surge ? 104 : 78;
+            shroud.r += (curR - shroud.r) * 0.06;
+            for (var i = 0; i < revive.length; i++) yieldDrone(revive[i], dt);
+            for (var j = 0; j < fleet.length; j++) yieldDrone(fleet[j], dt);
+            heli.rot += dt * 26; heli.y = 720 + Math.sin(t * 0.7) * 5;
+            shroud.x += shroud.vx * dt; if (shroud.x < 200) { shroud.x = 200; shroud.vx *= -1; } if (shroud.x > 1440) { shroud.x = 1440; shroud.vx *= -1; }
+        }
+
+        // ---- drawing helpers --------------------------------------------
+        function lineSeg(x1, y1, x2, y2, color, w, dash, alpha) {
+            ctx.save(); ctx.globalAlpha = alpha == null ? 1 : alpha; ctx.strokeStyle = color; ctx.lineWidth = w || 1;
+            ctx.setLineDash(dash || []); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.restore();
+        }
+        function polyLine(pts, color, w, dash, alpha) {
+            ctx.save(); ctx.globalAlpha = alpha == null ? 1 : alpha; ctx.strokeStyle = color; ctx.lineWidth = w || 1; ctx.setLineDash(dash || []);
+            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke(); ctx.restore();
+        }
+        function halo(x, y, r, color, alpha) {
+            var g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, color); g.addColorStop(0.25, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.save(); ctx.globalAlpha = (alpha == null ? 1 : alpha) * 0.20; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); ctx.restore();
+        }
+        function card(cx, cy, w, h, title, subLines, accent, opts) {
+            opts = opts || {};
+            var x = cx - w / 2, y = cy - h / 2;
+            ctx.save();
+            ctx.globalAlpha = opts.dim ? 0.42 : 1; ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(15,23,42,0.92)'; ctx.fillRect(x, y, w, h);
+            ctx.strokeStyle = opts.dim ? '#3a2230' : C.line; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
+            ctx.fillStyle = opts.dim ? C.dead : accent; ctx.fillRect(x, y, 3, h);
+            ctx.fillStyle = opts.dim ? C.dead : accent; ctx.fillRect(x + 12, y + 12, 6, 6);
+            ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+            ctx.fillStyle = C.text; ctx.font = '700 ' + (opts.titleSize || 15) + 'px sans-serif'; ctx.fillText(title, x + 25, y + (opts.titleY || 19));
+            ctx.font = "10px 'Courier New', monospace"; ctx.fillStyle = C.dim;
+            for (var i = 0; i < subLines.length; i++) ctx.fillText(subLines[i], x + 12, y + (opts.subY || 35) + i * 12);
+            ctx.restore();
+        }
+        function bandLabel(name, sub, y) {
+            ctx.save(); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+            ctx.font = "600 14px 'Courier New', monospace"; ctx.fillStyle = C.dim; ctx.fillText(name, 1578, y);
+            ctx.font = "10px 'Courier New', monospace"; ctx.fillStyle = '#7689a0'; ctx.fillText(sub, 1578, y + 15); ctx.restore();
+        }
+
+        function draw() {
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, cw, ch);
+            ctx.save();
+            ctx.translate(offX, offY); ctx.scale(scale, scale);
+
+            for (var i = 0; i < stars.length; i++) { var st = stars[i]; ctx.globalAlpha = 0.3 + 0.35 * Math.sin(t * 1.4 + st.tw); ctx.fillStyle = C.star; ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, 6.2832); ctx.fill(); }
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = '#081523'; for (var b = 0; b < sky.length; b++) ctx.fillRect(sky[b].x, 952 - sky[b].h, sky[b].w, sky[b].h);
+            lineSeg(0, 952, W, 952, '#16263a', 1, null, 0.9);
+            lineSeg(40, 300, W - 40, 300, C.line, 1, [5, 12], 0.6);
+            lineSeg(40, 712, 980, 712, C.line, 1, [5, 12], 0.5);
+            bandLabel('SPACE', 'LEO BACKUP · MIRROR', 224);
+            bandLabel('TPO', 'SOVEREIGN MESH', 392);
+            bandLabel('THE LOW', '0–500 FT AGL', 812);
+
+            drawInfra();
+            drawSats();
+            drawMirror();
+            drawNodes();
+            drawInterconnect();
+            drawShroud();
+            drawDrones();
+            drawLedger();
+            drawPackets();
+
+            ctx.restore();
+        }
+
+        function drawInfra() {
+            // Revive uplink beams (default terrestrial; reroute to sat on loss)
+            for (var i = 0; i < revive.length; i++) {
+                var d = revive[i], sn = nearestSN(d.x);
+                if (!terraDown) lineSeg(d.x, d.y, sn.x, sn.y, '#0e2a3a', 1, [3, 7], 0.4);
+                else { var sp = nearestSat(d.x); lineSeg(d.x, d.y, sp.x, sp.y, '#3a2f12', 1, [3, 7], 0.45); }
+            }
+            // External fleet -> USS -> DSS -> TPO (federated ingest)
+            for (var j = 0; j < fleet.length; j++) { var f = fleet[j], u = uss(f.uss); lineSeg(f.x, f.y, u.x, u.y, '#13294d', 1.2, [3, 7], 0.5); }
+            for (var k = 0; k < ussList.length; k++) lineSeg(ussList[k].x, ussList[k].y, dss.x, dss.y, '#1b3360', 1.2, [3, 7], 0.6);
+            var snDss = nearestSN(dss.x);
+            polyLine([{ x: snDss.x, y: snDss.y }, { x: dss.x, y: snDss.y }, { x: dss.x, y: dss.y }], '#234063', 1.4, [4, 6], 0.7);
+            // SN peer mesh
+            var meshDown = offline === 'SN-02';
+            lineSeg(sns[0].x, sns[0].y, sns[1].x, sns[1].y, meshDown ? '#3a2230' : '#0f3a35', 1.4, [2, 7], meshDown ? 0.4 : 0.65);
+            lineSeg(sns[1].x, sns[1].y, sns[2].x, sns[2].y, meshDown ? '#3a2230' : '#0f3a35', 1.4, [2, 7], meshDown ? 0.4 : 0.65);
+            if (meshDown) lineSeg(sns[0].x, sns[0].y - 10, sns[2].x, sns[2].y - 10, C.sync, 1.4, [2, 7], 0.75);
+            // Mirror terrestrial backbone (right bus); LEO path used when terrestrial down
+            var bb = terraDown, col = bb ? '#3a2f12' : '#0d2a26', al = bb ? 0.5 : 0.5;
+            lineSeg(1540, 150, 1540, 446, col, 1.4, [3, 9], al);
+            for (var n = 0; n < sns.length; n++) lineSeg(sns[n].x, sns[n].y, 1540, sns[n].y, col, 1.1, [3, 9], al * 0.7);
+            lineSeg(1540, 150, mirror.x, mirror.y, col, 1.4, [3, 9], al);
+            // latency tag on the interconnect riser
+            ctx.save(); ctx.fillStyle = C.utm; ctx.globalAlpha = 0.7; ctx.font = "9px 'Courier New', monospace"; ctx.textAlign = 'center';
+            ctx.fillText('+LATENCY · AGGREGATED RID', (dss.x + snDss.x) / 2, snDss.y - 8); ctx.restore();
+        }
+
+        function drawSats() {
+            var ps = sats.map(satPos).sort(function (a, b) { return a.x - b.x; });
+            var meshC = satActive ? '#1f5a4a' : '#22303f';
+            polyLine(ps, meshC, satActive ? 1.4 : 1.1, [4, 8], satActive ? 0.85 : 0.5);
+            if (satActive) lineSeg(ps[ps.length - 1].x, ps[ps.length - 1].y, mirror.x, mirror.y, '#1f5a4a', 1.3, [4, 8], 0.6);
+            for (var i = 0; i < ps.length; i++) {
+                var p = ps[i], on = satActive;
+                halo(p.x, p.y, 24, on ? C.satOk : '#3b4a5c', on ? 1 : 0.5);
+                ctx.save(); ctx.translate(p.x, p.y); ctx.setLineDash([]);
+                ctx.fillStyle = on ? '#0b1f2a' : '#0d141d'; ctx.strokeStyle = on ? C.satOk : '#3b4a5c'; ctx.lineWidth = 1.3;
+                ctx.fillRect(-7, -5, 14, 10); ctx.strokeRect(-7, -5, 14, 10);
+                ctx.fillStyle = on ? '#0d3530' : '#161f29'; ctx.fillRect(-19, -3, 8, 6); ctx.fillRect(11, -3, 8, 6); ctx.strokeRect(-19, -3, 8, 6); ctx.strokeRect(11, -3, 8, 6);
+                ctx.restore();
+            }
+            ctx.save(); ctx.textAlign = 'center'; ctx.font = "9px 'Courier New', monospace";
+            ctx.fillStyle = satActive ? C.satOk : '#3b4a5c'; ctx.globalAlpha = satActive ? 1 : 0.8;
+            ctx.fillText(satActive ? 'LEO MESH · ACTIVE BACKUP' : 'LEO MESH · STANDBY', (ps[0].x + ps[ps.length - 1].x) / 2, satArc.y - 30); ctx.restore();
+        }
+
+        function drawMirror() {
+            halo(mirror.x, mirror.y, 54, terraDown ? '#fbbf24' : C.mirror, 0.9);
+            ctx.save(); ctx.translate(mirror.x, mirror.y + 26); ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(13,40,36,0.6)'; ctx.strokeStyle = C.mirror; ctx.lineWidth = 1.4;
+            ctx.beginPath(); ctx.arc(-18, 2, 12, 0, 6.2832); ctx.arc(0, -6, 16, 0, 6.2832); ctx.arc(18, 2, 12, 0, 6.2832); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-30, 9); ctx.lineTo(30, 9); ctx.stroke(); ctx.restore();
+            card(mirror.x, mirror.y, 236, 64, 'GLOBAL REGISTRY MIRROR',
+                ['ALL EDGE REGISTRIES · ms-INTERVAL SYNC', 'HIGHER LATENCY · OUTAGE AUTHORITY', 'GUIDES TPO + INTERCONNECTED UTMs'], C.mirror);
+        }
+
+        function drawNodes() {
+            for (var i = 0; i < sns.length; i++) {
+                var n = sns[i], off = offline === n.id;
+                halo(n.x, n.y, 42, off ? C.dead : C.node, off ? 0.55 : 1);
+                if (off) { ctx.save(); ctx.strokeStyle = C.dead; ctx.lineWidth = 2; ctx.setLineDash([]); ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t * 7); ctx.beginPath(); ctx.arc(n.x, n.y, 29, 0, 6.2832); ctx.moveTo(n.x - 20, n.y - 20); ctx.lineTo(n.x + 20, n.y + 20); ctx.stroke(); ctx.restore(); }
+                card(n.x, n.y, 150, 44, n.id, [n.host + ' · EDGE REGISTRAR'], C.node, { dim: off });
+            }
+        }
+
+        function drawInterconnect() {
+            // DSS interconnect gateway
+            halo(dss.x, dss.y, 38, C.dss, 0.8);
+            card(dss.x, dss.y, 196, 46, dss.label, [dss.sub], C.dss, { titleSize: 13 });
+            // USS provider nodes
+            for (var i = 0; i < ussList.length; i++) {
+                var u = ussList[i];
+                ctx.save(); ctx.setLineDash([]);
+                var w = 132, h = 34, x = u.x - w / 2, y = u.y - h / 2;
+                ctx.fillStyle = 'rgba(15,23,42,0.92)'; ctx.fillRect(x, y, w, h);
+                ctx.strokeStyle = '#1b3360'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
+                ctx.fillStyle = C.uss; ctx.fillRect(x, y, 3, h);
+                ctx.fillStyle = C.uss; ctx.beginPath(); ctx.arc(x + 13, y + h / 2, 3, 0, 6.2832); ctx.fill();
+                ctx.fillStyle = C.text; ctx.font = '600 13px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(u.name, x + 24, y + h / 2 - 4);
+                ctx.fillStyle = C.dim; ctx.font = "9px 'Courier New', monospace"; ctx.fillText('USS · LAANC', x + 24, y + h / 2 + 8);
+                ctx.restore();
+            }
+            ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = C.dim; ctx.font = "600 11px 'Courier New', monospace";
+            ctx.fillText('EXTERNAL UTM / USS FABRIC', (ussList[0].x + ussList[ussList.length - 1].x) / 2, 760); ctx.restore();
+        }
+
+        function drawShroud() {
+            var sg = ctx.createRadialGradient(shroud.x, shroud.y, 0, shroud.x, shroud.y, shroud.r);
+            sg.addColorStop(0, 'rgba(168,85,247,0.18)'); sg.addColorStop(0.7, 'rgba(168,85,247,0.07)'); sg.addColorStop(1, 'rgba(168,85,247,0)');
+            ctx.save(); ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(shroud.x, shroud.y, shroud.r, 0, 6.2832); ctx.fill();
+            ctx.strokeStyle = C.prio; ctx.lineWidth = 1.4; ctx.setLineDash([6, 7]); ctx.globalAlpha = 0.85; ctx.lineDashOffset = -t * 22;
+            ctx.beginPath(); ctx.arc(shroud.x, shroud.y, shroud.r, 0, 6.2832); ctx.stroke();
+            ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.textAlign = 'center';
+            ctx.fillStyle = C.prio; ctx.font = "600 12px 'Courier New', monospace"; ctx.fillText('4D SHROUD', shroud.x, shroud.y - shroud.r - 12);
+            ctx.font = "10px 'Courier New', monospace"; ctx.fillStyle = '#a78bca'; ctx.fillText('ZERO-KNOWLEDGE', shroud.x, shroud.y + 4);
+            ctx.fillStyle = '#ffffff'; ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 5); ctx.beginPath(); ctx.arc(shroud.x, shroud.y, 3, 0, 6.2832); ctx.fill();
+            ctx.restore();
+        }
+
+        function quad(d, col, label) {
+            if (d.yielding) {
+                ctx.save(); ctx.strokeStyle = C.prio; ctx.globalAlpha = 0.6 + 0.35 * Math.sin(t * 9); ctx.lineWidth = 1.4; ctx.setLineDash([3, 4]);
+                ctx.beginPath(); ctx.arc(d.x, d.y, 15, 0, 6.2832); ctx.stroke(); ctx.restore();
+                ctx.save(); ctx.fillStyle = C.prio; ctx.globalAlpha = 0.9; ctx.font = "600 10px 'Courier New', monospace"; ctx.textAlign = 'center'; ctx.fillText('YIELD', d.x, d.y - 19); ctx.restore();
+            }
+            var age = 1 - (d.pulse / 2.2);
+            if (age > 0 && age < 1) { ctx.save(); ctx.globalAlpha = (1 - age) * 0.42; ctx.strokeStyle = col; ctx.lineWidth = 1.2; ctx.setLineDash([]); ctx.beginPath(); ctx.arc(d.x, d.y, 6 + age * 24, 0, 6.2832); ctx.stroke(); ctx.restore(); }
+            ctx.save(); ctx.translate(d.x, d.y); ctx.setLineDash([]);
+            ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.globalAlpha = 0.9;
+            ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(8, 6); ctx.moveTo(8, -6); ctx.lineTo(-8, 6); ctx.stroke();
+            ctx.fillStyle = col; var rt = [[-8, -6], [8, -6], [-8, 6], [8, 6]];
+            for (var r = 0; r < 4; r++) { ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(rt[r][0], rt[r][1], 2.3, 0, 6.2832); ctx.fill(); }
+            ctx.globalAlpha = 1; ctx.fillStyle = '#0b1220'; ctx.strokeStyle = col; ctx.beginPath(); ctx.arc(0, 0, 3.3, 0, 6.2832); ctx.fill(); ctx.stroke();
+            ctx.restore();
+            ctx.save(); ctx.fillStyle = col; ctx.globalAlpha = 0.72; ctx.font = "9px 'Courier New', monospace"; ctx.textAlign = 'center'; ctx.fillText(label, d.x, d.y + 23); ctx.restore();
+        }
+
+        function drawDrones() {
+            for (var i = 0; i < revive.length; i++) quad(revive[i], revive[i].yielding ? C.yield : C.revive, 'REVIVE');
+            for (var j = 0; j < fleet.length; j++) quad(fleet[j], fleet[j].yielding ? C.yield : C.fleet, fleet[j].op);
+            // manned priority helicopter (P1)
+            ctx.save(); ctx.translate(heli.x, heli.y); ctx.setLineDash([]);
+            halo(0, 0, 28, C.manned, 0.5);
+            ctx.fillStyle = 'rgba(239,68,68,0.10)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(52, -18); ctx.lineTo(52, 18); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = C.manned; ctx.lineWidth = 1.6; ctx.fillStyle = '#1a0e10';
+            ctx.beginPath(); ctx.ellipse(0, 0, 8, 5, 0, 0, 6.2832); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(-2, 4); ctx.lineTo(-10, 12); ctx.stroke();
+            var rr = heli.rot * Math.PI / 180; ctx.globalAlpha = 0.85; ctx.lineWidth = 1.4;
+            ctx.beginPath(); ctx.moveTo(-13 * Math.cos(rr), -13 * Math.sin(rr)); ctx.lineTo(13 * Math.cos(rr), 13 * Math.sin(rr)); ctx.stroke();
+            ctx.restore();
+            ctx.save(); ctx.fillStyle = C.manned; ctx.globalAlpha = 0.8; ctx.font = "600 10px 'Courier New', monospace"; ctx.textAlign = 'center'; ctx.fillText('MEDEVAC · MANNED P1', heli.x, heli.y + 33); ctx.restore();
+        }
+
+        function drawLedger() {
+            var bw = 46, gap = 8, n = ledger.length, startX = 210, y = 560;
+            ctx.save(); ctx.textAlign = 'left'; ctx.font = "600 12px 'Courier New', monospace"; ctx.fillStyle = C.slate; ctx.fillText('IMMUTABLE LEDGER', startX, y - 16);
+            ctx.font = "10px 'Courier New', monospace"; ctx.fillStyle = '#7689a0'; ctx.fillText('EVERY TRANSACTION · WHOLE SKY', startX, y - 4); ctx.restore();
+            for (var i = 0; i < n; i++) {
+                var blk = ledger[i], x = startX + i * (bw + gap), fresh = Math.max(0, 1 - (t - blk.born) / 0.7);
+                ctx.save(); ctx.setLineDash([]);
+                ctx.fillStyle = '#0b1726'; ctx.strokeStyle = fresh > 0 ? C.text : '#1f5a4a'; ctx.lineWidth = fresh > 0 ? 1.6 : 1.1; ctx.globalAlpha = 0.5 + 0.5 * (i / n);
+                ctx.fillRect(x, y, bw, 26); ctx.strokeRect(x, y, bw, 26);
+                ctx.globalAlpha = 1; ctx.fillStyle = fresh > 0 ? C.text : C.sync; ctx.font = "9px 'Courier New', monospace"; ctx.textAlign = 'center'; ctx.fillText(blk.h, x + bw / 2, y + 16);
+                ctx.restore();
+                if (i < n - 1) lineSeg(x + bw, y + 13, x + bw + gap, y + 13, '#1f5a4a', 1, null, 0.7);
+            }
+            ctx.save(); ctx.fillStyle = C.dim; ctx.font = "10px 'Courier New', monospace"; ctx.textAlign = 'left'; ctx.fillText('→ APPEND', startX + n * (bw + gap) + 6, y + 17); ctx.restore();
+        }
+
+        function drawPackets() {
+            for (var i = 0; i < packets.length; i++) {
+                var pk = packets[i], head = posAt(pk, pk.p), tail = posAt(pk, Math.max(0, pk.p - 0.06));
+                ctx.save(); ctx.setLineDash([]);
+                var grad = ctx.createLinearGradient(tail.x, tail.y, head.x, head.y);
+                grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, pk.color);
+                ctx.strokeStyle = grad; ctx.lineWidth = pk.size * 0.9; ctx.lineCap = 'round';
+                ctx.beginPath(); ctx.moveTo(tail.x, tail.y); ctx.lineTo(head.x, head.y); ctx.stroke();
+                var gg = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, pk.size * 3.2);
+                gg.addColorStop(0, pk.color); gg.addColorStop(0.4, pk.color); gg.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.globalAlpha = 0.9; ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(head.x, head.y, pk.size * 3.2, 0, 6.2832); ctx.fill();
+                ctx.globalAlpha = 1; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(head.x, head.y, pk.size * 0.6, 0, 6.2832); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // ---- status + counts --------------------------------------------
+        var lastPhaseShown = null;
+        function setStatus(text, color) { statusEl.textContent = text; statusEl.style.color = color || C.tele; }
+        function syncStatusToPhase() {
+            if (phase === lastPhaseShown) return;
+            lastPhaseShown = phase;
+            if (phase === 'TERRA_LINK_LOSS') setStatus('SYS_STATUS: TERRESTRIAL UPLINK DEGRADED — REVIVE FLEET FAILED OVER TO LEO SATELLITE', '#fbbf24');
+            else if (phase === 'NODE_OUTAGE') setStatus('SYS_STATUS: SN-02 OFFLINE — GLOBAL REGISTRY MIRROR + MESH SUSTAINING WHOLE-SKY PICTURE', C.dead);
+            else setStatus('SYS_STATUS: WHOLE-SKY NOMINAL — REVIVE→TERRESTRIAL · UTM RID INGESTED · MIRROR SYNCED', C.tele);
+        }
+        var cntL = document.getElementById('cnt-leases'), cntF = document.getElementById('cnt-feeds'), cntB = document.getElementById('cnt-blocks');
+        setInterval(function () { cntL.textContent = acc.leases; cntF.textContent = acc.feeds; cntB.textContent = acc.blocks; }, 500);
+
+        // ---- controls ----------------------------------------------------
+        var btnTerra = document.getElementById('btn-terra'), btnNode = document.getElementById('btn-node'),
+            btnShroud = document.getElementById('btn-shroud'), btnReset = document.getElementById('btn-reset');
+        function clearActive() { [btnTerra, btnNode].forEach(function (b) { b.classList.remove('active'); }); }
+        btnTerra.addEventListener('click', function () { forced = 'TERRA_LINK_LOSS'; clearActive(); btnTerra.classList.add('active'); });
+        btnNode.addEventListener('click', function () { forced = 'NODE_OUTAGE'; clearActive(); btnNode.classList.add('active'); });
+        btnShroud.addEventListener('click', function () { surgeUntil = t + 6; setStatus('SYS_STATUS: PRIORITY SURGE — 4D SHROUD EXPANDED · SUBORDINATE TRAFFIC YIELDING', C.prio); lastPhaseShown = '__surge'; });
+        btnReset.addEventListener('click', function () { forced = null; clearActive(); t0 = performance.now(); lastPhaseShown = null; });
+
+        // ---- loop --------------------------------------------------------
+        function frame(now) {
+            var dt = (now - last) / 1000; if (dt > 0.05) dt = 0.05; last = now;
+            t = (now - t0) / 1000;
+            updatePhase();
+            if (lastPhaseShown !== '__surge' || t >= surgeUntil) syncStatusToPhase();
+            updateEmitters(dt);
+            updatePackets(dt);
+            updateWorld(dt);
+            draw();
+            requestAnimationFrame(frame);
+        }
+        resize();
+        requestAnimationFrame(frame);
+    })();
+    </script>
+</body>
+</html>
