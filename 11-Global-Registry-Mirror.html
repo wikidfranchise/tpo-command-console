@@ -136,23 +136,31 @@
             { id: 'SN-02', x: 560, y: 442, host: 'HOSPITAL' },
             { id: 'SN-03', x: 830, y: 442, host: 'TRIBAL / CASINO' }
         ];
-        var dss = { x: 1010, y: 590, label: 'UTM INTERCONNECT', sub: 'InterUSS DSS · RID + CONSTRAINT' };
+        var dss = { x: 1086, y: 582, label: 'UTM INTERCONNECT', sub: 'InterUSS DSS · RID + CONSTRAINT' };
         var ussList = [
-            { id: 'aloft', x: 1140, y: 700, name: 'Aloft' },
-            { id: 'wing', x: 1300, y: 700, name: 'Wing OpenSky' },
-            { id: 'airmatrix', x: 1462, y: 700, name: 'AirMatrix' }
+            { id: 'aloft', name: 'Aloft', tier: 'LAANC' },
+            { id: 'wing', name: 'Wing OpenSky', tier: 'LAANC' },
+            { id: 'airmatrix', name: 'AirMatrix', tier: 'LAANC' },
+            { id: 'airspace', name: 'Airspace Link', tier: 'LAANC' },
+            { id: 'autopylot', name: 'AutoPylot', tier: 'LAANC' },
+            { id: 'avision', name: 'Avision', tier: 'LAANC' },
+            { id: 'anra', name: 'ANRA', tier: 'ENTRPRS' }
         ];
+        (function () { var n = ussList.length, x0 = 752, x1 = 1518, y = 702; for (var i = 0; i < n; i++) { ussList[i].x = Math.round(x0 + (x1 - x0) * (i / (n - 1))); ussList[i].y = y; } })();
         function uss(id) { for (var i = 0; i < ussList.length; i++) if (ussList[i].id === id) return ussList[i]; return ussList[0]; }
 
         // Revive fleet (terrestrial-native) — left zone
         var revive = [];
-        var rdef = [[360, 850], [540, 896], [720, 850], [900, 896]];
+        var rdef = [[340, 852], [588, 892], [836, 852], [1084, 892]];
         for (var i = 0; i < rdef.length; i++) { revive.push({ x: rdef[i][0], ox: rdef[i][0], y: rdef[i][1], base: rdef[i][1], ph: Math.random() * 6.28, pulse: Math.random() * 2.4, yielding: false }); }
         // External fleets (UTM-federated) — right zone, each bound to a USS
         var fleet = [
-            { x: 1060, ox: 1060, base: 852, op: 'DJI', uss: 'aloft', ph: 0.4, pulse: 1.1, yielding: false },
-            { x: 1240, ox: 1240, base: 892, op: 'SKYDIO', uss: 'wing', ph: 1.7, pulse: 0.6, yielding: false },
-            { x: 1420, ox: 1420, base: 856, op: 'STD RID', uss: 'airmatrix', ph: 3.0, pulse: 1.9, yielding: false }
+            { x: 464, ox: 464, base: 872, op: 'DJI', uss: 'aloft', ph: 0.4, pulse: 1.1, yielding: false },
+            { x: 712, ox: 712, base: 856, op: 'SKYDIO', uss: 'wing', ph: 1.7, pulse: 0.6, yielding: false },
+            { x: 960, ox: 960, base: 894, op: 'STD RID', uss: 'airmatrix', ph: 3.0, pulse: 1.9, yielding: false },
+            { x: 1208, ox: 1208, base: 868, op: 'BRINC', uss: 'airspace', ph: 0.9, pulse: 1.4, yielding: false },
+            { x: 1332, ox: 1332, base: 888, op: 'AUTEL', uss: 'autopylot', ph: 2.3, pulse: 0.8, yielding: false },
+            { x: 1456, ox: 1456, base: 858, op: 'PARROT', uss: 'avision', ph: 4.1, pulse: 1.6, yielding: false }
         ];
         for (var j = 0; j < fleet.length; j++) { fleet[j].y = fleet[j].base; }
         var tagCount = revive.length + fleet.length;
@@ -439,17 +447,17 @@
             for (var i = 0; i < ussList.length; i++) {
                 var u = ussList[i];
                 ctx.save(); ctx.setLineDash([]);
-                var w = 132, h = 34, x = u.x - w / 2, y = u.y - h / 2;
+                var w = 116, h = 34, x = u.x - w / 2, y = u.y - h / 2;
                 ctx.fillStyle = 'rgba(15,23,42,0.92)'; ctx.fillRect(x, y, w, h);
                 ctx.strokeStyle = '#1b3360'; ctx.lineWidth = 1; ctx.strokeRect(x, y, w, h);
                 ctx.fillStyle = C.uss; ctx.fillRect(x, y, 3, h);
-                ctx.fillStyle = C.uss; ctx.beginPath(); ctx.arc(x + 13, y + h / 2, 3, 0, 6.2832); ctx.fill();
-                ctx.fillStyle = C.text; ctx.font = '600 13px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(u.name, x + 24, y + h / 2 - 4);
-                ctx.fillStyle = C.dim; ctx.font = "9px 'Courier New', monospace"; ctx.fillText('USS · LAANC', x + 24, y + h / 2 + 8);
+                ctx.fillStyle = C.uss; ctx.beginPath(); ctx.arc(x + 12, y + h / 2, 3, 0, 6.2832); ctx.fill();
+                ctx.fillStyle = C.text; ctx.font = '600 12px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText(u.name, x + 21, y + h / 2 - 4);
+                ctx.fillStyle = C.dim; ctx.font = "9px 'Courier New', monospace"; ctx.fillText('USS · ' + u.tier, x + 21, y + h / 2 + 8);
                 ctx.restore();
             }
             ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = C.dim; ctx.font = "600 11px 'Courier New', monospace";
-            ctx.fillText('EXTERNAL UTM / USS FABRIC', (ussList[0].x + ussList[ussList.length - 1].x) / 2, 760); ctx.restore();
+            ctx.fillText('EXTERNAL UTM / USS FABRIC · ONE API \u2192 EVERY CONFORMANT USS', (ussList[0].x + ussList[ussList.length - 1].x) / 2, 760); ctx.restore();
         }
 
         function drawShroud() {
